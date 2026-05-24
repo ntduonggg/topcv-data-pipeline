@@ -50,7 +50,7 @@ API_BASE  = "https://api.everbee.com/product_analytics"
 OUTPUT_CSV       = "everbee_data.csv"
 OUTPUT_XLSX      = "everbee_data.xlsx"
 CHECKPOINT_CSV   = "everbee_checkpoint.csv"
-CHECKPOINT_EVERY = 500   # flush mỗi N rows mới
+CHECKPOINT_EVERY = 1000   # flush mỗi N rows mới
 
 PER_PAGE      = 20    # giữ 20 (giá trị server dùng), tăng nếu server cho phép
 REQUEST_DELAY = 0.3   # giây giữa các request
@@ -64,7 +64,7 @@ TOKEN_TIMEOUT = 120   # giây chờ browser lấy token
 #   → Headers → X-Access-Token → copy toàn bộ giá trị
 # Cách 2: để rỗng "" → script tự động mở browser lấy token
 # Cách 3: token hết hạn giữa chừng → script tự động refresh (không cần can thiệp)
-AUTH_TOKEN = ""
+AUTH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJldmVyYmVlLXNzbyIsImlhdCI6MTc3OTI3NzEwNCwiZXhwIjoxNzc5ODgxOTA0LCJqdGkiOiI0YWRmMmM2MDI0NzAiLCJ1c2VyX2lkIjoiZjk5OTYxYzUtZWFhNC00OWMyLTk4YzEtOGM5Mjc5NzIzMGEzIiwiZW1haWwiOiJuZ3V5ZW50aGFpZHVvbmc5MnRsdEBnbWFpbC5jb20iLCJ0diI6MSwiaWJwIjpmYWxzZSwiaWJzIjp0cnVlLCJzb3MiOmZhbHNlLCJhY3QiOiIxIiwiYXVkIjoiMzctVVA0eFI0bVpaYVp0ZXMyN2k2aUpZQnpSMFh5MF9DMTBmZS13dC1TRSIsInNjb3BlcyI6W119.cgUK7ZzpOr1nLofl59BF6WCj-S8_7L_5yMgntnucXO6XiM_-wRvvb4XCEuFPqqDE96SsIsB2Ecn87tcoqJfdwg"
 
 # ── API request params ────────────────────────────────────────────────────────
 # Các params này lấy từ URL request trong DevTools
@@ -81,11 +81,17 @@ DEFAULT_PARAMS = {
 # Mỗi order_by khác nhau → ranking khác → listing mới ở các page sau.
 # dedup tự động xử lý overlap giữa các combo.
 QUERY_COMBOS: List[Dict] = [
-    {"order_by": "views",           "order_direction": "desc"},
-    {"order_by": "est_mo_revenue",  "order_direction": "desc"},
-    {"order_by": "reviews",         "order_direction": "desc"},
-    {"order_by": "favorites",       "order_direction": "desc"},
-    {"order_by": "listing_age",     "order_direction": "desc"},
+    {"order_by": "views",                 "order_direction": "desc"},
+    {"order_by": "est_mo_revenue",        "order_direction": "desc"},
+    {"order_by": "reviews",               "order_direction": "desc"},
+    {"order_by": "favorites",             "order_direction": "desc"},
+    {"order_by": "listing_age",           "order_direction": "desc"},
+    {"order_by": "est_reviews",           "order_direction": "desc"},
+    {"order_by": "est_reviews_in_months", "order_direction": "desc"},
+    {"order_by": "transaction_sold_count","order_direction": "desc"},
+    {"order_by": "listing_age",           "order_direction": "asc"},
+    {"order_by": "transaction_sold_count","order_direction": "asc"},
+    {"order_by": "est_reviews_in_months", "order_direction": "asc"},
 ]
 
 # ── Field mapping: API response → tên cột output ─────────────────────────────
@@ -617,7 +623,7 @@ if __name__ == "__main__":
 
     df = crawl_to_dataframe(
         keywords=KEYWORDS,
-        max_rows=30000,
+        max_rows=50000,
     )
 
     if not df.empty:
