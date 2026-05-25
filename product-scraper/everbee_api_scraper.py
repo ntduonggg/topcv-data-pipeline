@@ -5,7 +5,7 @@ import sys
 import os
 import signal
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -64,7 +64,7 @@ TOKEN_TIMEOUT = 120   # giây chờ browser lấy token
 #   → Headers → X-Access-Token → copy toàn bộ giá trị
 # Cách 2: để rỗng "" → script tự động mở browser lấy token
 # Cách 3: token hết hạn giữa chừng → script tự động refresh (không cần can thiệp)
-AUTH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJldmVyYmVlLXNzbyIsImlhdCI6MTc3OTI3NzEwNCwiZXhwIjoxNzc5ODgxOTA0LCJqdGkiOiI0YWRmMmM2MDI0NzAiLCJ1c2VyX2lkIjoiZjk5OTYxYzUtZWFhNC00OWMyLTk4YzEtOGM5Mjc5NzIzMGEzIiwiZW1haWwiOiJuZ3V5ZW50aGFpZHVvbmc5MnRsdEBnbWFpbC5jb20iLCJ0diI6MSwiaWJwIjpmYWxzZSwiaWJzIjp0cnVlLCJzb3MiOmZhbHNlLCJhY3QiOiIxIiwiYXVkIjoiMzctVVA0eFI0bVpaYVp0ZXMyN2k2aUpZQnpSMFh5MF9DMTBmZS13dC1TRSIsInNjb3BlcyI6W119.cgUK7ZzpOr1nLofl59BF6WCj-S8_7L_5yMgntnucXO6XiM_-wRvvb4XCEuFPqqDE96SsIsB2Ecn87tcoqJfdwg"
+AUTH_TOKEN = ""
 
 # ── API request params ────────────────────────────────────────────────────────
 # Các params này lấy từ URL request trong DevTools
@@ -92,6 +92,8 @@ QUERY_COMBOS: List[Dict] = [
     {"order_by": "listing_age",           "order_direction": "asc"},
     {"order_by": "transaction_sold_count","order_direction": "asc"},
     {"order_by": "est_reviews_in_months", "order_direction": "asc"},
+    {"order_by": "listing_age",           "order_direction": "asc"},
+    {"order_by": "views",                 "order_direction": "asc"},
 ]
 
 # ── Field mapping: API response → tên cột output ─────────────────────────────
@@ -100,11 +102,11 @@ FIELD_MAP: Dict[str, str] = {
     "listing_id":                    "listing_id",
     "title":                         "product",
     "price":                         "price",
-    "cached_listing_age_in_months":  "listing_age",
+    "listing_age_in_months":         "listing_age",
     "views":                         "total_views",
     "num_favorers":                  "total_favorites",
-    "review_count":                  "total_reviews",
-    "cached_est_reviews_in_months":  "avg_reviews",
+    "est_reviews":                   "total_reviews",
+    "est_reviews_in_months":         "avg_reviews",
     "shop_age_month":                "shop_age",
     "transaction_sold_count":        "total_shop_sales",
     "main_category":                 "category",
@@ -112,6 +114,7 @@ FIELD_MAP: Dict[str, str] = {
     "url":                           "etsy_url",
     "shipping_from_country_iso":     "ship_from",
     "cached_visibility_score":       "visibility_score",
+    #"created_at":                    "created_at",
     # Locked fields — trả về "Please upgrade", vẫn lưu để biết
     "est_mo_sales":                  "mo_sales",
     "est_mo_revenue":                "mo_revenue",
@@ -124,14 +127,14 @@ LOCKED_FIELDS = {"mo_sales", "mo_revenue", "total_sales_est", "growth_rate", "vi
 
 COLUMN_ORDER = [
     "listing_id", "product", "shop_name", "price",
-    "listing_age", "total_views", "views_per_month",
-    "total_reviews", "avg_reviews", "total_favorites",
+    "listing_age", "created_age", "total_views", "views_per_month",
+    "total_reviews", "avg_reviews", "total_favorites", 
+    #"created_at", 
     "shop_age", "total_shop_sales",
     "category", "listing_type", "ship_from",
-    "etsy_url", "tags", "image_url",
-    "views_per_month", "engagement_rate", "competition_score",
-    "mo_sales", "mo_revenue", "total_sales_est", "growth_rate",
-    "niche", "sub_niche",
+    "etsy_url", "tags", "image_url","engagement_rate", 
+    "competition_score", "mo_sales", "mo_revenue", 
+    "total_sales_est", "growth_rate", "niche", "sub_niche",
 ]
 
 # Niche/sub-niche keyword map — điền sau khi có keyword list
@@ -356,6 +359,19 @@ def parse_record(item: Dict) -> Dict:
         record["competition_score"] = str(round(_reviews / _vpm, 2)) if _vpm > 0 else ""
     except (ValueError, ZeroDivisionError):
         record["competition_score"] = ""
+
+    # — created_age: (now - created_at) in months (computed) ————————————
+    # Listing càng mới → traffic/tháng càng đáng tin cậy hơn "Listing Age" làm tròn
+    try:
+        _created_at = record.get("created_at", "")
+        if _created_at:
+            _now = datetime.now(timezone.utc)
+            _created_dt = datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
+            record["created_age"] = str(round((_now - _created_dt).days / 30.44, 1))
+        else:
+            record["created_age"] = ""
+    except (ValueError, TypeError):
+        record["created_age"] = ""
 
     # ── niche / sub-niche ─────────────────────────────────────────────────────
     record["niche"]     = extract_niche(record.get("tags", ""))
