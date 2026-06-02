@@ -64,7 +64,7 @@ TOKEN_TIMEOUT = 120   # giây chờ browser lấy token
 #   → Headers → X-Access-Token → copy toàn bộ giá trị
 # Cách 2: để rỗng "" → script tự động mở browser lấy token
 # Cách 3: token hết hạn giữa chừng → script tự động refresh (không cần can thiệp)
-AUTH_TOKEN = ""
+AUTH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJldmVyYmVlLXNzbyIsImlhdCI6MTc3OTY5MTIzMCwiZXhwIjoxNzgwMjk2MDMwLCJqdGkiOiI4OThkNjE1ZGFiOWQiLCJ1c2VyX2lkIjoiZjk5OTYxYzUtZWFhNC00OWMyLTk4YzEtOGM5Mjc5NzIzMGEzIiwiZW1haWwiOiJuZ3V5ZW50aGFpZHVvbmc5MnRsdEBnbWFpbC5jb20iLCJ0diI6MSwiaWJwIjpmYWxzZSwiaWJzIjp0cnVlLCJzb3MiOmZhbHNlLCJhY3QiOiIxIiwiYXVkIjoiMzctVVA0eFI0bVpaYVp0ZXMyN2k2aUpZQnpSMFh5MF9DMTBmZS13dC1TRSIsInNjb3BlcyI6W119.pI-ReNMochfQpIiWHCFUQdFSpIl_pMHxi0oqkLlA-CmJc8K8oMcNbLkqk0KogK7t7JRhaYux0DbyfmNDUx1_sQ"
 
 # ── API request params ────────────────────────────────────────────────────────
 # Các params này lấy từ URL request trong DevTools
@@ -82,6 +82,7 @@ DEFAULT_PARAMS = {
 # dedup tự động xử lý overlap giữa các combo.
 QUERY_COMBOS: List[Dict] = [
     {"order_by": "views",                 "order_direction": "desc"},
+    {"order_by": "views",                 "order_direction": "asc"},
     {"order_by": "est_mo_revenue",        "order_direction": "desc"},
     {"order_by": "reviews",               "order_direction": "desc"},
     {"order_by": "favorites",             "order_direction": "desc"},
@@ -633,7 +634,7 @@ def crawl_to_dataframe(
 # ── __main__ ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     KEYWORDS = [
-        "resin lamp",
+        "disney cruise door magnet",
         # thêm keyword tại đây
     ]
 
