@@ -236,7 +236,7 @@ def scrape_listing_images(
 
         # ── P2: Phát hiện 429 ─────────────────────────────────────────────────
         if is_rate_limited(page_src):
-            backoff = BACKOFF_BASE * attempt  # 30s, 60s, 90s
+            backoff = BACKOFF_BASE + 10 * attempt  # 40s, 50s, 60s
             warn(f"429 / Rate limit detected tại listing {listing_id}! "
                  f"Nghỉ {backoff}s trước retry {attempt}/{MAX_RETRY}...")
             time.sleep(backoff)
@@ -250,7 +250,7 @@ def scrape_listing_images(
 
         # Không có ảnh (có thể trang chưa render xong)
         if attempt < MAX_RETRY:
-            backoff = BACKOFF_BASE * attempt
+            backoff = BACKOFF_BASE + 10 * attempt
             retry(f"Không có ảnh tại listing {listing_id} "
                   f"(attempt {attempt}/{MAX_RETRY}) — nghỉ {backoff}s rồi thử lại...")
             time.sleep(backoff)

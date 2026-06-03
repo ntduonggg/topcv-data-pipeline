@@ -42,7 +42,7 @@ TRELLO_API_KEY   = ""
 TRELLO_TOKEN     = ""
 TRELLO_BOARD_ID  = ""
 
-INPUT_CSV        = "heyetsy_checkpoint.csv"
+INPUT_CSV        = "heyetsy_image_urls.csv"
 
 # Delay giữa các API call (tránh 429 Trello)
 DELAY_BETWEEN_CARDS       = 0.3   # giây giữa mỗi card
