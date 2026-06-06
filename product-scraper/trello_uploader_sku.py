@@ -41,7 +41,7 @@ def sep():      print("─" * 60)
 # ── Config ────────────────────────────────────────────────────────────────────
 TRELLO_API_KEY  = os.getenv("TRELLO_API_KEY", "")
 TRELLO_TOKEN    = os.getenv("TRELLO_TOKEN", "")
-TRELLO_BOARD_ID = "6a222829ea1b5cc18b3d69ca"
+TRELLO_BOARD_ID = ""
 
 INPUT_CSV         = "heyetsy_image_urls.csv"
 DELAY_CARD        = 0.3
