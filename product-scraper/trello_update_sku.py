@@ -1,20 +1,12 @@
 """
-update_card_info.py
+trello_update_sku.py
 ────────────────────
-Check và update card name (SKU) + description (Title, Tags, Etsy URL)
-cho tất cả cards trên board theo dữ liệu từ heyetsy_image_urls.csv.
+Update card name (SKU) + description cho tất cả cards trên board.
 
-Dạng chuẩn:
-  Card name : NTD{ddmmyy}{letter}{counter}  VD: NTD050626A01
-  Description:
-    **Title:** <title>
-    **Tags:** <tags>
-    **Etsy URL:** <url>
+SKU dựa vào ngày tạo card (extract từ createCard action hoặc card ID):
+  NTD{ddmmyy}{letter}{counter}  VD: NTD050626A01
 
-Flow:
-  B1: Đếm cards theo list, hiển thị breakdown
-  B2: Chọn dòng bắt đầu (resume hoặc từ đầu)
-  B3: Xác nhận lần cuối → tiến hành update
+Update toàn bộ, kể cả card đã có SKU đúng định dạng.
 """
 
 import os
@@ -24,7 +16,7 @@ import time
 import signal
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 # ── ANSI color logging ────────────────────────────────────────────────────────
@@ -58,19 +50,16 @@ def sep():      print("─" * 60)
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TRELLO_API_KEY  = ""
-TRELLO_TOKEN    = ""
-TRELLO_BOARD_ID = ""
+TRELLO_API_KEY  = os.getenv("TRELLO_API_KEY", "")
+TRELLO_TOKEN    = os.getenv("TRELLO_TOKEN", "")
+TRELLO_BOARD_ID = "6a222829ea1b5cc18b3d69ca"
 
 INPUT_CSV    = "heyetsy_image_urls.csv"
-DELAY_UPDATE = 0.3   # giây giữa mỗi API call update
+DELAY_UPDATE = 0.3
 
-# SKU prefix & letter (phải khớp với trello_uploader.py)
 SKU_PREFIX = "NTD"
 SKU_LETTER = "A"
-
-# Regex nhận dạng SKU hợp lệ: NTD{6 chữ số}{letter}{1+ chữ số}
-SKU_REGEX = re.compile(r"^[A-Z]+\d{6}[A-Z]\d+$")
+VN_OFFSET  = timedelta(hours=7)   # UTC+7
 
 TRELLO_BASE = "https://api.trello.com/1"
 
@@ -90,6 +79,43 @@ def _put(endpoint: str, payload: Dict = {}) -> dict:
     return resp.json()
 
 
+# ── Date helpers ──────────────────────────────────────────────────────────────
+def card_id_to_date_vn(card_id: str) -> datetime:
+    """Extract ngày tạo từ card ID (MongoDB ObjectID), convert sang UTC+7."""
+    timestamp = int(card_id[:8], 16)
+    dt_utc    = datetime.utcfromtimestamp(timestamp).replace(tzinfo=timezone.utc)
+    return dt_utc.astimezone(timezone(VN_OFFSET))
+
+def get_create_date_from_action(card_id: str) -> Optional[datetime]:
+    """
+    Gọi Actions API lấy ngày createCard chính xác.
+    Trả về datetime UTC+7 hoặc None nếu không có.
+    """
+    try:
+        actions = _get(
+            f"/cards/{card_id}/actions",
+            {"filter": "createCard", "fields": "date", "limit": "1"}
+        )
+        if actions:
+            date_str = actions[0]["date"]   # VD: "2026-06-05T02:59:13.180Z"
+            dt_utc   = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            dt_utc   = dt_utc.replace(tzinfo=timezone.utc)
+            return dt_utc.astimezone(timezone(VN_OFFSET))
+    except Exception:
+        pass
+    return None
+
+def get_card_date_str(card_id: str) -> str:
+    """
+    Lấy date string dạng ddmmyy (UTC+7) để dùng trong SKU.
+    Ưu tiên Actions API, fallback về extract từ card ID.
+    """
+    dt = get_create_date_from_action(card_id)
+    if dt is None:
+        dt = card_id_to_date_vn(card_id)
+    return dt.strftime("%d%m%y")
+
+
 # ── Board helpers ─────────────────────────────────────────────────────────────
 def fetch_board_lists(board_id: str) -> List[Dict]:
     return _get(f"/boards/{board_id}/lists", {"fields": "id,name"})
@@ -103,17 +129,11 @@ def count_cards_per_list(board_id: str) -> List[Dict]:
     return result
 
 def fetch_all_cards(board_id: str) -> List[Dict]:
-    """
-    Fetch toàn bộ cards trên board (tất cả lists) kèm name + desc.
-    Trả về list theo thứ tự list → card.
-    """
-    lists = fetch_board_lists(board_id)
+    """Fetch toàn bộ cards (id, name, desc) theo thứ tự list → card."""
+    lists     = fetch_board_lists(board_id)
     all_cards = []
     for lst in lists:
-        cards = _get(
-            f"/lists/{lst['id']}/cards",
-            {"fields": "id,name,desc"}
-        )
+        cards = _get(f"/lists/{lst['id']}/cards", {"fields": "id,name,desc"})
         for c in cards:
             c["list_name"] = lst["name"]
             c["list_id"]   = lst["id"]
@@ -140,7 +160,6 @@ def load_csv(csv_path: str) -> pd.DataFrame:
     return df
 
 def build_meta_map(df: pd.DataFrame) -> Dict[str, Dict]:
-    """Tạo {title → {title, tags, etsy_url}} để lookup nhanh."""
     meta = {}
     for _, row in df.iterrows():
         title = (row.get("title") or "").strip()
@@ -157,26 +176,6 @@ def build_meta_map(df: pd.DataFrame) -> Dict[str, Dict]:
 def make_sku(counter: int, date_str: str) -> str:
     return f"{SKU_PREFIX}{date_str}{SKU_LETTER}{str(counter).zfill(2)}"
 
-def is_valid_sku(name: str) -> bool:
-    return bool(SKU_REGEX.match(name))
-
-def get_sku_counter(board_id: str) -> int:
-    """Lấy counter SKU tiếp theo dựa vào card cuối cùng trên board."""
-    today = datetime.now().strftime("%d%m%y")
-    try:
-        lists = fetch_board_lists(board_id)
-        for lst in reversed(lists):
-            cards = _get(f"/lists/{lst['id']}/cards", {"fields": "name"})
-            if not cards:
-                continue
-            m = re.match(r"[A-Z]+(\d{6})[A-Z](\d+)$", cards[-1]["name"])
-            if not m:
-                break
-            return int(m.group(2)) + 1 if m.group(1) == today else 1
-    except Exception:
-        pass
-    return 1
-
 def extract_title_from_desc(desc: str) -> str:
     m = re.search(r"\*\*Title:\*\*\s*(.+)", desc or "")
     return m.group(1).strip() if m else ""
@@ -191,10 +190,9 @@ def build_expected_desc(meta: Dict) -> str:
         parts.append(f"**Etsy URL:** {meta['etsy_url']}")
     return "\n\n".join(parts)
 
-def desc_is_correct(current_desc: str, expected_desc: str) -> bool:
-    """So sánh description hiện tại với expected (normalize whitespace)."""
+def desc_is_correct(current: str, expected: str) -> bool:
     normalize = lambda s: re.sub(r"\s+", " ", s.strip())
-    return normalize(current_desc) == normalize(expected_desc)
+    return normalize(current) == normalize(expected)
 
 
 # ── Signal handler ────────────────────────────────────────────────────────────
@@ -209,13 +207,12 @@ def setup_signal():
 
 
 # ── Startup flow (B1 → B3) ────────────────────────────────────────────────────
-def startup_check(board_id: str, total_cards: int, list_stats: List[Dict], df: pd.DataFrame) -> int:
-    """
-    B1: Hiển thị breakdown cards theo list.
-    B2: Chọn dòng bắt đầu (resume hoặc từ 1).
-    B3: Xác nhận lần cuối.
-    Trả về start_idx (0-based, tính theo thứ tự card trên board).
-    """
+def startup_check(
+    board_id:    str,
+    total_cards: int,
+    list_stats:  List[Dict],
+    df:          pd.DataFrame,
+) -> int:
     total_listings = len(df)
     shops          = df["shop_name"].unique().tolist()
 
@@ -224,20 +221,51 @@ def startup_check(board_id: str, total_cards: int, list_stats: List[Dict], df: p
 
     if total_cards == 0:
         info("Board rỗng — không có card nào để update.")
-        sep()
         sys.exit(0)
 
-    info(f"Tìm thấy {total_cards} card (tổng {total_listings} listings), trong đó:")
-    for s in list_stats:
-        shop_total = len(df[df["shop_name"] == s["name"]]) if s["name"] in shops else "?"
-        print(f"  * {s['card_count']} card trong List {s['name']} (tổng {shop_total} listings)")
+    # B1: Breakdown + gợi ý resume từng list
+    trello_card_count = {s["name"]: s["card_count"] for s in list_stats}
 
+    info(f"Tìm thấy {total_cards} card (tổng {total_listings} listings), trong đó:")
+    running            = 0
+    resume_suggestions = []
+
+    for shop_name in shops:
+        shop_total      = len(df[df["shop_name"] == shop_name])
+        cards_in_trello = trello_card_count.get(shop_name, 0)
+        print(f"  * {cards_in_trello} card trong List {shop_name} (tổng {shop_total} listings)")
+        if cards_in_trello > 0:
+            resume_row = running + cards_in_trello + 1   # 1-based, dòng tiếp theo
+            resume_suggestions.append((shop_name, cards_in_trello, resume_row))
+        running += shop_total
+
+    # Tính suggested: dòng tiếp theo sau shop/card cuối đã upload
+    suggested = 0
+    running   = 0
+    for shop_name in shops:
+        shop_total      = len(df[df["shop_name"] == shop_name])
+        cards_in_trello = trello_card_count.get(shop_name, 0)
+        if cards_in_trello == 0:
+            break
+        if cards_in_trello >= shop_total:
+            running   += shop_total
+            suggested  = running
+        else:
+            suggested = running + cards_in_trello
+            break
+
+    print()
+    info("Gợi ý resume từng list:")
+    for shop_name, cards_done, global_row in resume_suggestions:
+        print(f"  * resume list {shop_name} tại card {cards_done} [nhập {global_row}]")
+
+    info(f"Đề xuất tiếp tục từ card thứ {suggested + 1}/{total_cards}")
     sep()
 
-    # B2: Resume hay từ đầu
+    # B2: Resume hay từ 1
     ans = input(
         f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tiếp tục từ dòng {total_cards}/{total_cards}? (Y/n): "
+        f"Tiếp tục từ card {suggested + 1}/{total_cards}? (Y/n): "
     ).strip().lower()
 
     if ans == "n":
@@ -247,12 +275,11 @@ def startup_check(board_id: str, total_cards: int, list_stats: List[Dict], df: p
         ).strip()
         start_idx = int(custom) - 1 if custom.isdigit() else 0
     else:
-        # Resume: gợi ý mặc định là card cuối + 1
         custom = input(
             f"{ts()} {C.tag(C.INFO, 'INFO')}  "
-            f"Nhập số thứ tự card bắt đầu [mặc định {total_cards + 1}]: "
+            f"Nhập số thứ tự card bắt đầu [mặc định {suggested + 1}]: "
         ).strip()
-        start_idx = int(custom) - 1 if custom.isdigit() else total_cards
+        start_idx = int(custom) - 1 if custom.isdigit() else suggested
 
     info(f"Sẽ bắt đầu check/update từ card thứ {start_idx + 1}/{total_cards}")
     sep()
@@ -284,30 +311,40 @@ def run(
     df       = load_csv(csv_path)
     meta_map = build_meta_map(df)
 
-    # ── B1: Đếm cards ─────────────────────────────────────────────────────────
+    # B1: đếm cards
     info("Đang đếm cards trên board...")
     list_stats  = count_cards_per_list(board_id)
     total_cards = sum(s["card_count"] for s in list_stats)
 
-    # ── B1 → B3: Startup check ────────────────────────────────────────────────
+    # B1 → B3
     start_idx = startup_check(board_id, total_cards, list_stats, df)
 
-    # ── Fetch toàn bộ cards ────────────────────────────────────────────────────
+    # Fetch toàn bộ cards
     info("Fetching toàn bộ cards trên board...")
     all_cards = fetch_all_cards(board_id)
     info(f"Loaded {len(all_cards)} cards.")
     sep()
 
-    # SKU counter bắt đầu = start_idx + 1 (vì counter 1-based)
-    today       = datetime.now().strftime("%d%m%y")
-    sku_counter = start_idx + 1
+    cards_to_process = all_cards[start_idx:]
+
+    # date_counter_map: {date_str → counter hiện tại}
+    # Mỗi ngày có counter riêng, tiếp tục đúng chỗ khi quay lại ngày cũ
+    date_counter_map: Dict[str, int] = {}
+
+    # Nếu resume từ giữa: pre-scan toàn bộ card trước start_idx
+    # để biết counter hiện tại của từng ngày
+    if start_idx > 0:
+        info(f"Pre-scan {start_idx} cards trước start_idx để tính counter...")
+        for c in all_cards[:start_idx]:
+            d = get_card_date_str(c["id"])
+            date_counter_map[d] = date_counter_map.get(d, 0) + 1
+        for d, cnt in sorted(date_counter_map.items()):
+            info(f"  Ngày {d}: đã dùng {cnt} counter (tiếp theo = {cnt + 1})")
 
     updated_name = 0
     updated_desc = 0
     already_ok   = 0
     no_meta      = 0
-
-    cards_to_process = all_cards[start_idx:]
 
     for i, card in enumerate(cards_to_process, start_idx + 1):
         if _interrupted:
@@ -318,42 +355,47 @@ def run(
         current_desc = card.get("desc", "")
         list_name    = card.get("list_name", "")
 
-        # Lookup metadata theo title trong description
-        title_in_desc = extract_title_from_desc(current_desc)
-        meta = meta_map.get(title_in_desc)
+        # ── Lấy ngày tạo card (UTC+7) ─────────────────────────────────────────
+        date_str = get_card_date_str(card_id)
 
-        # Fallback: nếu card name là title (card cũ chưa có SKU)
-        if not meta:
-            meta = meta_map.get(current_name)
+        # ── Lấy counter tiếp theo của ngày này ───────────────────────────────
+        sku_counter = date_counter_map.get(date_str, 0) + 1
+
+        # ── Lookup metadata ───────────────────────────────────────────────────
+        title_in_desc = extract_title_from_desc(current_desc)
+        meta          = meta_map.get(title_in_desc) or meta_map.get(current_name)
 
         if not meta:
             warn(f"  [{i}/{total_cards}] '{current_name[:50]}' — không tìm thấy metadata, skip")
             no_meta += 1
-            sku_counter += 1
+            # Vẫn tăng counter ngày này để giữ đúng thứ tự SKU
+            date_counter_map[date_str] = sku_counter
             time.sleep(DELAY_UPDATE)
             continue
 
-        # Tính giá trị expected
-        expected_name = make_sku(sku_counter, today)
+        # ── Tính giá trị expected ─────────────────────────────────────────────
+        expected_name = make_sku(sku_counter, date_str)
         expected_desc = build_expected_desc(meta)
 
-        name_ok = is_valid_sku(current_name) and current_name == expected_name
+        name_ok = current_name == expected_name
         desc_ok = desc_is_correct(current_desc, expected_desc)
 
+        # Tăng counter của ngày này trước khi xử lý tiếp
+        date_counter_map[date_str] = sku_counter
+
         if name_ok and desc_ok:
-            skip(f"  [{i}/{total_cards}] '{current_name}' — OK, skip")
-            already_ok  += 1
-            sku_counter += 1
+            skip(f"  [{i}/{total_cards}] '{current_name}' ({date_str}) — OK, skip")
+            already_ok += 1
             time.sleep(DELAY_UPDATE)
             continue
 
-        # Cần update
-        payload = {}
+        # ── Update ────────────────────────────────────────────────────────────
+        payload   = {}
         log_parts = []
 
         if not name_ok:
             payload["name"] = expected_name
-            log_parts.append(f"name: '{current_name}' → '{expected_name}'")
+            log_parts.append(f"name: '{current_name}' → '{expected_name}' ({date_str})")
 
         if not desc_ok:
             payload["desc"] = expected_desc
@@ -369,7 +411,6 @@ def run(
         except requests.HTTPError as e:
             err(f"  [{i}/{total_cards}] Update thất bại: {e}")
 
-        sku_counter += 1
         time.sleep(DELAY_UPDATE)
 
     # ── Summary ───────────────────────────────────────────────────────────────

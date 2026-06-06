@@ -41,7 +41,7 @@ def sep():      print("─" * 60)
 # ── Config ────────────────────────────────────────────────────────────────────
 TRELLO_API_KEY  = os.getenv("TRELLO_API_KEY", "")
 TRELLO_TOKEN    = os.getenv("TRELLO_TOKEN", "")
-TRELLO_BOARD_ID = os.getenv("TRELLO_BOARD_ID", "")
+TRELLO_BOARD_ID = "6a222829ea1b5cc18b3d69ca"
 
 INPUT_CSV         = "heyetsy_image_urls.csv"
 DELAY_CARD        = 0.3
@@ -257,28 +257,52 @@ def startup_check(board_id: str, df: pd.DataFrame) -> int:
         return start_idx
 
     # Hiển thị breakdown
-    info(f"Tìm thấy {total_cards} card (tổng {total_listings} listings), trong đó:")
-    cumulative = 0
-    for s in list_stats:
-        # Tính tổng listings của shop này
-        shop_total = len(df[df["shop_name"] == s["name"]]) if s["name"] in shops else 0
-        print(f"  * {s['card_count']} card trong List {s['name']} (tổng {shop_total} listings)")
-        cumulative += s["card_count"]
+    # info(f"Tìm thấy {total_cards} card (tổng {total_listings} listings), trong đó:")
+    # cumulative = 0
+    # for s in list_stats:
+    #     # Tính tổng listings của shop này
+    #     shop_total = len(df[df["shop_name"] == s["name"]]) if s["name"] in shops else 0
+    #     print(f"  * {s['card_count']} card trong List {s['name']} (tổng {shop_total} listings)")
+    #     cumulative += s["card_count"]
 
-    suggested = total_cards  # đề xuất mặc định: dòng tiếp theo sau card cuối
+    # suggested = total_cards  # đề xuất mặc định: dòng tiếp theo sau card cuối
+    # sep()
+
+    # Hiển thị breakdown + tính suggested dựa theo thứ tự CSV
+    info(f"Tìm thấy {total_cards} card (tổng {total_listings} listings), trong đó:")
+
+    # Map list_name → card_count từ Trello
+    trello_card_count = {s["name"]: s["card_count"] for s in list_stats}
+
+    # Tính cumulative theo đúng thứ tự shop trong CSV
+    running = 0
+    resume_suggestions = []  # [(shop_name, card_idx_in_shop, global_row)]
+
+    for shop_name in shops:
+        shop_total      = len(df[df["shop_name"] == shop_name])
+        cards_in_trello = trello_card_count.get(shop_name, 0)
+        print(f"  * {cards_in_trello} card trong List {shop_name} (tổng {shop_total} listings)")
+
+        #if cards_in_trello > 0:
+            # Dòng global để resume list này = running + cards_in_trello + 1
+        resume_row = running + cards_in_trello + 1  # 1-based
+        resume_suggestions.append((shop_name, cards_in_trello + 1, resume_row))
+
+        running += shop_total
+
     sep()
 
     # ── B2: Resume hay Reset ──────────────────────────────────────────────────
     ans = input(
         f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tiếp tục từ dòng {suggested + 1}/{total_listings}? (Y/n): "
+        f"Tiếp tục upload(Y)/Reset(n): "
     ).strip().lower()
 
     if ans == "n":
         # Reset: xác nhận xoá
         confirm = input(
             f"{ts()} {C.tag(C.ERROR, 'CONFIRM')} "
-            f"Xoá toàn bộ {total_cards} cards + lists? (yes/no): "
+            f"Xoá toàn bộ {total_cards} cards + {len(list_stats)} lists? (yes/no): "
         ).strip().lower()
 
         if confirm != "yes":
@@ -292,9 +316,32 @@ def startup_check(board_id: str, df: pd.DataFrame) -> int:
 
     else:
         # Resume: dùng suggested hoặc cho nhập tay
+        # Tính suggested = dòng tiếp theo sau card cuối cùng đã upload
+        suggested = 0
+        running   = 0
+        for shop_name in shops:
+            shop_total      = len(df[df["shop_name"] == shop_name])
+            cards_in_trello = trello_card_count.get(shop_name, 0)
+            if cards_in_trello == 0:
+                break
+            if cards_in_trello >= shop_total:
+                running   += shop_total
+                suggested  = running
+            else:
+                suggested = running + cards_in_trello
+                break
+
+        # Hiển thị gợi ý resume từng list
+        print()
+        info("Gợi ý resume:")
+        for shop_name, card_in_shop, global_row in resume_suggestions:
+            cards_done = card_in_shop - 1
+            print(f"  * resume list {shop_name} tại card {cards_done + 1} [nhập {global_row + 1}]")
+
+
         custom = input(
             f"{ts()} {C.tag(C.INFO, 'INFO')}  "
-            f"Nhập dòng bắt đầu [mặc định {suggested + 1}]: "
+            f"Nhập dòng bắt đầu [mặc định {suggested + 2}]: "
         ).strip()
 
         if custom.isdigit():
@@ -306,17 +353,7 @@ def startup_check(board_id: str, df: pd.DataFrame) -> int:
 
     sep()
 
-    # ── B3: Xác nhận lần cuối ────────────────────────────────────────────────
-    final = input(
-        f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tiếp tục upload từ dòng {start_idx + 1}? (Y/n): "
-    ).strip().lower()
-
-    if final == "n":
-        info("Huỷ — thoát.")
-        sys.exit(0)
-
-    return start_idx
+    return start_idx - 1
 
 
 def _confirm_and_get_start(suggested: int, total: int) -> int:
@@ -329,7 +366,7 @@ def _confirm_and_get_start(suggested: int, total: int) -> int:
 
     final = input(
         f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tiếp tục upload từ dòng {start_idx + 1}/{total}? (Y/n): "
+        f"Tiếp tục upload từ dòng {start_idx + 2}/{total}? (Y/n): "
     ).strip().lower()
 
     if final == "n":
@@ -354,13 +391,23 @@ def upload_to_trello(
     # ── B1 → B3: Startup check ────────────────────────────────────────────────
     start_idx = startup_check(board_id, df)
 
+    # ── B3: Xác nhận lần cuối ────────────────────────────────────────────────
+    final = input(
+        f"{ts()} {C.tag(C.WARN, 'WARN')}  "
+        f"Tiếp tục upload từ dòng {start_idx + 2}? (Y/n): "
+    ).strip().lower()
+
+    if final == "n":
+        info("Huỷ — thoát.")
+        sys.exit(0)
+
     existing_lists    = fetch_existing_lists(board_id)
     existing_cards_cache: Dict[str, Dict] = {}
     shops             = df["shop_name"].unique().tolist()
     df_from           = df.iloc[start_idx:].copy()
     card_counter      = get_card_counter_start(board_id)
 
-    info(f"Tổng {len(df)} listings | Bắt đầu từ dòng {start_idx + 1}\n")
+    info(f"Tổng {len(df)} listings | Bắt đầu từ dòng {start_idx + 2}\n")
 
     cards_created     = 0
     cards_reattach    = 0
@@ -376,11 +423,13 @@ def upload_to_trello(
             continue
 
         # Tính global row index của listing đầu tiên trong shop này
-        first_global_idx = df[df["shop_name"] == shop_name].index[0]
-        last_global_idx  = df[df["shop_name"] == shop_name].index[-1]
+        first_global_idx = start_idx + 2
+        last_global_idx  = start_idx + len(shop_rows) + 1
 
         info(f"[{shop_idx}/{len(shops)}] List: {shop_name}  "
-             f"({len(shop_rows)} listings | dòng {first_global_idx + 1}–{last_global_idx + 1})")
+             f"({last_global_idx - first_global_idx + 1} listings remaining | dòng {first_global_idx}–{last_global_idx})")
+        
+        time.sleep(30)  # nghỉ 1s trước khi xử lý list mới
 
         list_id = get_or_create_list(board_id, shop_name, existing_lists)
 

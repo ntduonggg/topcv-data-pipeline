@@ -40,7 +40,8 @@ def upd(msg):   print(f"{ts()} {C.tag(C.CKPT,      'UPD')}   {msg}")
 # ── Config ────────────────────────────────────────────────────────────────────
 TRELLO_API_KEY  = os.abort("TRELLO_API_KEY not set in environment") if "TRELLO_API_KEY" not in os.environ else os.getenv("TRELLO_API_KEY")
 TRELLO_TOKEN    = os.abort("TRELLO_TOKEN not set in environment") if "TRELLO_TOKEN" not in os.environ else os.getenv("TRELLO_TOKEN")
-TRELLO_BOARD_ID = os.abort("TRELLO_BOARD_ID not set in environment") if "TRELLO_BOARD_ID" not in os.environ else os.getenv("TRELLO_BOARD_ID")
+# TRELLO_BOARD_ID = os.abort("TRELLO_BOARD_ID not set in environment") if "TRELLO_BOARD_ID" not in os.environ else os.getenv("TRELLO_BOARD_ID")
+TRELLO_BOARD_ID = "6a1e46af43dba9d0e0a10eb9"
 
 INPUT_CSV = "heyetsy_image_urls.csv"
 
