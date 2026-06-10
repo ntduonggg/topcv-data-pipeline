@@ -50,9 +50,9 @@ def sep():      print("─" * 60)
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TRELLO_API_KEY  = os.getenv("TRELLO_API_KEY", "")
-TRELLO_TOKEN    = os.getenv("TRELLO_TOKEN", "")
-TRELLO_BOARD_ID = ""
+TRELLO_API_KEY  = os.abort("TRELLO_API_KEY not set in environment") if "TRELLO_API_KEY" not in os.environ else os.getenv("TRELLO_API_KEY")
+TRELLO_TOKEN    = os.abort("TRELLO_TOKEN not set in environment") if "TRELLO_TOKEN" not in os.environ else os.getenv("TRELLO_TOKEN")
+TRELLO_BOARD_ID = os.abort("TRELLO_BOARD_ID not set in environment") if "TRELLO_BOARD_ID" not in os.environ else os.getenv("TRELLO_BOARD_ID")
 
 INPUT_CSV    = "heyetsy_image_urls.csv"
 DELAY_UPDATE = 0.3

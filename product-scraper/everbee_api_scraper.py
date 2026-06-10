@@ -64,7 +64,7 @@ TOKEN_TIMEOUT = 120   # giây chờ browser lấy token
 #   → Headers → X-Access-Token → copy toàn bộ giá trị
 # Cách 2: để rỗng "" → script tự động mở browser lấy token
 # Cách 3: token hết hạn giữa chừng → script tự động refresh (không cần can thiệp)
-AUTH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJldmVyYmVlLXNzbyIsImlhdCI6MTc3OTY5MTIzMCwiZXhwIjoxNzgwMjk2MDMwLCJqdGkiOiI4OThkNjE1ZGFiOWQiLCJ1c2VyX2lkIjoiZjk5OTYxYzUtZWFhNC00OWMyLTk4YzEtOGM5Mjc5NzIzMGEzIiwiZW1haWwiOiJuZ3V5ZW50aGFpZHVvbmc5MnRsdEBnbWFpbC5jb20iLCJ0diI6MSwiaWJwIjpmYWxzZSwiaWJzIjp0cnVlLCJzb3MiOmZhbHNlLCJhY3QiOiIxIiwiYXVkIjoiMzctVVA0eFI0bVpaYVp0ZXMyN2k2aUpZQnpSMFh5MF9DMTBmZS13dC1TRSIsInNjb3BlcyI6W119.pI-ReNMochfQpIiWHCFUQdFSpIl_pMHxi0oqkLlA-CmJc8K8oMcNbLkqk0KogK7t7JRhaYux0DbyfmNDUx1_sQ"
+AUTH_TOKEN = os.abort("AUTH_TOKEN not set in environment") if "AUTH_TOKEN" not in os.environ else os.getenv("AUTH_TOKEN")
 
 # ── API request params ────────────────────────────────────────────────────────
 # Các params này lấy từ URL request trong DevTools

@@ -96,32 +96,32 @@ SHOP_FIELDS: Dict[str, str] = {
 LISTING_FIELDS: Dict[str, str] = {
     "listing_id":                    "listing_id",
     "title":                         "title",
-    "price":                         "price",
-    "state":                         "state",
-    "cached_listing_age_in_months":  "listing_age",
-    "views":                         "views",
-    "num_favorers":                  "favorites",
-    "review_count":                  "reviews",
-    "cached_est_reviews_in_months":  "avg_reviews",
-    "transaction_sold_count":        "total_sold",
-    "listing_active_count":          "listing_active_count",
-    "main_category":                 "category",
-    "sub_category":                  "sub_category",
-    "listing_type":                  "listing_type",
-    "shipping_from_country_iso":     "ship_from",
-    "cached_visibility_score":       "visibility_score",
-    "cached_est_reviews":            "est_reviews",
     "url":                           "etsy_url",
     "Images":                        "image_url",
-    "when_made":                     "when_made",
-    "who_made":                      "who_made",
-    "is_customizable":               "is_customizable",
-    "has_variations":                "has_variations",
-    # Locked
-    "est_mo_sales":                  "mo_sales",
-    "est_mo_revenue":                "mo_revenue",
-    "est_total_sales":               "total_sales_est",
-    "growth_rate":                   "growth_rate",
+    # "price":                         "price",
+    # "state":                         "state",
+    # "cached_listing_age_in_months":  "listing_age",
+    # "views":                         "views",
+    # "num_favorers":                  "favorites",
+    # "review_count":                  "reviews",
+    # "cached_est_reviews_in_months":  "avg_reviews",
+    # "transaction_sold_count":        "total_sold",
+    # "listing_active_count":          "listing_active_count",
+    # "main_category":                 "category",
+    # "sub_category":                  "sub_category",
+    # "listing_type":                  "listing_type",
+    # "shipping_from_country_iso":     "ship_from",
+    # "cached_visibility_score":       "visibility_score",
+    # "cached_est_reviews":            "est_reviews",
+    # "when_made":                     "when_made",
+    # "who_made":                      "who_made",
+    # "is_customizable":               "is_customizable",
+    # "has_variations":                "has_variations",
+    # # Locked
+    # "est_mo_sales":                  "mo_sales",
+    # "est_mo_revenue":                "mo_revenue",
+    # "est_total_sales":               "total_sales_est",
+    # "growth_rate":                   "growth_rate",
 }
 
 # ── Column order — 2 sheet: shop_summary và shop_listings ────────────────────
@@ -138,14 +138,13 @@ SHOP_COLUMN_ORDER = [
 
 LISTING_COLUMN_ORDER = [
     "shop_name",
-    "listing_id", "title", "price", "state",
-    "listing_age", "views", "favorites", "reviews", "avg_reviews",
-    "total_sold", "visibility_score", "est_reviews",
-    "category", "sub_category", "listing_type",
-    "ship_from", "when_made", "who_made",
-    "is_customizable", "has_variations",
-    "etsy_url", "image_url", "tags",
-    "mo_sales", "mo_revenue", "total_sales_est", "growth_rate",
+    "listing_id", "title", "price", "tags", "etsy_url", "image_url", 
+    # "listing_age", "views", "favorites", "reviews", "avg_reviews", "state",
+    # "total_sold", "visibility_score", "est_reviews",
+    # "category", "sub_category", "listing_type",
+    # "ship_from", "when_made", "who_made",
+    # "is_customizable", "has_variations",
+    # "mo_sales", "mo_revenue", "total_sales_est", "growth_rate",
 ]
 
 
@@ -302,7 +301,7 @@ def parse_listing(item: Dict, shop_name: str) -> Dict:
             row[col] = clean_val(val)
     # tags: array → string
     tags = item.get("tags", [])
-    row["tags"] = "; ".join(t.strip() for t in tags if t) if isinstance(tags, list) else clean_val(tags)
+    row["tags"] = ", ".join(t.strip() for t in tags if t) if isinstance(tags, list) else clean_val(tags)
     return row
 
 
@@ -520,19 +519,19 @@ def crawl_to_dataframe(
         df_listings = df_listings[cols + extra]
 
     # ── Lưu output ────────────────────────────────────────────────────────────
-    shops_csv    = OUTPUT_CSV.replace(".csv",  "_shops.csv")
+    # shops_csv    = OUTPUT_CSV.replace(".csv",  "_shops.csv")
     listings_csv = OUTPUT_CSV.replace(".csv",  "_listings.csv")
-    shops_xlsx   = OUTPUT_XLSX.replace(".xlsx", "_shops.xlsx")
+    # shops_xlsx   = OUTPUT_XLSX.replace(".xlsx", "_shops.xlsx")
     listings_xlsx= OUTPUT_XLSX.replace(".xlsx", "_listings.xlsx")
 
-    df_shops.to_csv(shops_csv,       index=False, encoding="utf-8-sig")
+    #df_shops.to_csv(shops_csv,       index=False, encoding="utf-8-sig")
     df_listings.to_csv(listings_csv, index=False, encoding="utf-8-sig")
-    done(f"CSV saved → {shops_csv} ({len(df_shops)} shops)")
+    #done(f"CSV saved → {shops_csv} ({len(df_shops)} shops)")
     done(f"CSV saved → {listings_csv} ({len(df_listings)} listings)")
 
-    df_shops.to_excel(shops_xlsx,       index=False)
+    #df_shops.to_excel(shops_xlsx,       index=False)
     df_listings.to_excel(listings_xlsx, index=False)
-    done(f"Excel saved → {shops_xlsx}")
+    #done(f"Excel saved → {shops_xlsx}")
     done(f"Excel saved → {listings_xlsx}")
 
     # Xoá checkpoint
@@ -551,9 +550,10 @@ def smart_sleep(min_s: float = 0.5, max_s: float = 1.0):
 # ── __main__ ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     SHOP_NAMES = [
-        "AutumnloveByDaniel",
-        "TrueFlowInk",
-        "PhotoOnShirt",
+        "GONdesignJEWELRY",
+    #     "AutumnloveByDaniel",
+    #     "TrueFlowInk",
+    #     "PhotoOnShirt",
     ]
 
     df_shops, df_listings = crawl_to_dataframe(
