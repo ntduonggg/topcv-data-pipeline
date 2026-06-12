@@ -7,7 +7,7 @@ Flow:
   1. Đọc image_1 URL từ heyetsy_image_urls.csv
   2. Download ảnh + hiển thị kích thước để user xác định tọa độ crop
   3. User nhập x, y, w, h để crop vùng art
-  4. Gửi vùng crop lên Bria AI RMBG-2.0 (qua Replicate) để remove background
+  4. Gửi vùng crop lên Bria AI RMBG-2.0 (qua Replicate) để remove background (có thế thay thế bằng rembg)
   5. Lưu kết quả PNG transparent vào thư mục output
 
 Yêu cầu:

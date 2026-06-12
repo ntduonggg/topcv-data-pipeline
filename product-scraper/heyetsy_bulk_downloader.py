@@ -44,12 +44,12 @@ def stop(msg):   print(f"{ts()} {C.tag(C.INTERRUPT, 'STOP')}   {msg}")
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-INPUT_CSV        = "everbee_shop_data_listings.csv"  # CSV từ everbee_shop_scraper (có etsy_url)
+INPUT_CSV        = "hidden_listings.csv"  # CSV từ everbee_shop_scraper (có etsy_url)
 OUTPUT_CSV       = "heyetsy_image_urls.csv"              # Output: thêm cột image_1, image_2, ...
 BULK_URL         = "https://heyetsy.com/tools/bulk-etsy-images-downloader"
 ETSY_LISTING_URL = "https://www.etsy.com/listing/{id}"
 
-BATCH_SIZE       = 50     # max 50 URLs/lần theo giới hạn trang
+BATCH_SIZE       = 40     # max 50 URLs/lần theo giới hạn trang
 CAPTCHA_TIMEOUT  = 120    # giây chờ user tick CAPTCHA
 RESULT_TIMEOUT   = 60     # giây chờ kết quả load sau khi Pull
 DOWNLOAD_DIR     = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -148,9 +148,9 @@ def load_input_csv(csv_path: str) -> pd.DataFrame:
 # ── get_missing_indices ───────────────────────────────────────────────────────
 def get_missing_indices(df: pd.DataFrame) -> List[int]:
     """Trả về list index của các dòng chưa có image_1."""
-    if "image_1" not in df.columns:
-        return list(df.index)
-    return list(df[df["image_1"] == ""].index)
+    # if "image_1" not in df.columns:
+    return list(df.index)
+    # return list(df[df["image_1"] == ""].index)
 
 
 # ── chunk_batches ─────────────────────────────────────────────────────────────
@@ -424,11 +424,11 @@ def run(
     """
     df = load_input_csv(input_csv)
     missing = get_missing_indices(df)
-    info(f"Dòng thiếu ảnh: {len(missing)} / {len(df)}")
+    # info(f"Dòng thiếu ảnh: {len(missing)} / {len(df)}")
 
-    if not missing:
-        done("Không có dòng nào thiếu ảnh — không cần làm gì.")
-        return df
+    # if not missing:
+    #     done("Không có dòng nào thiếu ảnh — không cần làm gì.")
+    #     return df
 
     batches = chunk_batches(missing, BATCH_SIZE)
     info(f"Chia thành {len(batches)} batch (mỗi batch tối đa {BATCH_SIZE} listings)")

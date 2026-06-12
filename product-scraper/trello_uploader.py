@@ -5,7 +5,7 @@ import time
 import signal
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 # ── ANSI color logging ────────────────────────────────────────────────────────
@@ -35,22 +35,25 @@ def done(msg):  print(f"{ts()} {C.tag(C.DONE,      'DONE')}  {msg}")
 def skip(msg):  print(f"{ts()} {C.tag(C.SKIP,      'SKIP')}  {msg}")
 def stop(msg):  print(f"{ts()} {C.tag(C.INTERRUPT, 'STOP')}  {msg}")
 def upd(msg):   print(f"{ts()} {C.tag(C.CKPT,      'UPD')}   {msg}")
+def sep():      print("─" * 60)
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
 TRELLO_API_KEY  = os.abort("TRELLO_API_KEY not set in environment") if "TRELLO_API_KEY" not in os.environ else os.getenv("TRELLO_API_KEY")
 TRELLO_TOKEN    = os.abort("TRELLO_TOKEN not set in environment") if "TRELLO_TOKEN" not in os.environ else os.getenv("TRELLO_TOKEN")
 TRELLO_BOARD_ID = os.abort("TRELLO_BOARD_ID not set in environment") if "TRELLO_BOARD_ID" not in os.environ else os.getenv("TRELLO_BOARD_ID")
-#TRELLO_BOARD_ID = ""
 
 INPUT_CSV = "heyetsy_image_urls.csv"
+#INPUT_CSV = "hidden_listings.csv"
 
 DELAY_CARD        = 0.3
 DELAY_ATTACHMENT  = 0.2
 DELAY_LIST        = 1.0
+DELAY_BETWEEN_LISTS = 10.0
 
 TRELLO_BASE = "https://api.trello.com/1"
 
+VN_OFFSET  = timedelta(hours=7)
 
 # ── Trello API helpers ────────────────────────────────────────────────────────
 def _auth() -> Dict:
@@ -95,6 +98,10 @@ def _delete(endpoint: str) -> bool:
 
 
 # ── List helpers ──────────────────────────────────────────────────────────────
+def fetch_board_lists(board_id: str) -> List[Dict]:
+    """Trả về list các {id, name} của tất cả lists trên board."""
+    return _get(f"/boards/{board_id}/lists", {"fields": "id,name"})
+
 def fetch_existing_lists(board_id: str) -> Dict[str, str]:
     lists = _get(f"/boards/{board_id}/lists", {"fields": "id,name"})
     return {lst["name"]: lst["id"] for lst in lists}
@@ -121,7 +128,6 @@ def delete_list_cards(list_id: str) -> int:
         count += 1
         time.sleep(0.1)
     return count
-
 
 # ── Card helpers ──────────────────────────────────────────────────────────────
 def fetch_cards_with_attachments(list_id: str) -> Dict[str, Dict]:
@@ -180,6 +186,66 @@ def delete_all_board_cards_and_lists(board_id: str) -> int:
         info(f"  Archived list '{lst['id']}' ({n} cards)")
     return deleted
 
+def get_latest_card(board_id: str) -> str:
+    """
+    Trả về card mới nhất trên board.
+    """
+    lists = fetch_board_lists(board_id)
+    latest_card = None
+    for lst in lists:
+        cards = _get(f"/lists/{lst['id']}/cards", {"fields": "id,name,dateLastActivity", "limit": 1000})
+        latest_card = cards[-1] if cards else None
+        # for card in cards:
+        #     if not latest_card or card["dateLastActivity"] > latest_card["dateLastActivity"]:
+        #         latest_card = card
+    return latest_card["name"] if latest_card else None
+
+def card_id_to_date_vn(card_id: str) -> datetime:
+    """Extract ngày tạo từ card ID (MongoDB ObjectID), convert sang UTC+7."""
+    timestamp = int(card_id[:8], 16)
+    dt_utc    = datetime.utcfromtimestamp(timestamp).replace(tzinfo=timezone.utc)
+    return dt_utc.astimezone(timezone(VN_OFFSET))
+
+def get_create_date_from_action(card_id: str) -> Optional[datetime]:
+    """
+    Gọi Actions API lấy ngày createCard chính xác.
+    Trả về datetime UTC+7 hoặc None nếu không có.
+    """
+    try:
+        actions = _get(
+            f"/cards/{card_id}/actions",
+            {"filter": "createCard", "fields": "date", "limit": "1"}
+        )
+        if actions:
+            date_str = actions[0]["date"]   # VD: "2026-06-05T02:59:13.180Z"
+            dt_utc   = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            dt_utc   = dt_utc.replace(tzinfo=timezone.utc)
+            return dt_utc.astimezone(timezone(VN_OFFSET))
+    except Exception:
+        pass
+    return None
+
+def get_card_date_str(card_id: str) -> str:
+    """
+    Lấy date string dạng ddmmyy (UTC+7) để dùng trong SKU.
+    Ưu tiên Actions API, fallback về extract từ card ID.
+    """
+    dt = get_create_date_from_action(card_id)
+    if dt is None:
+        dt = card_id_to_date_vn(card_id)
+    return dt.strftime("%d%m%y")
+
+
+def count_cards_per_list(board_id: str) -> List[Dict]:
+    """
+    Trả về list [{name, id, card_count}] cho mỗi list trên board.
+    """
+    lists = fetch_board_lists(board_id)
+    result = []
+    for lst in lists:
+        cards = _get(f"/lists/{lst['id']}/cards", {"fields": "id"})
+        result.append({"name": lst["name"], "id": lst["id"], "card_count": len(cards)})
+    return result
 
 # ── Attachment helpers ────────────────────────────────────────────────────────
 def fetch_card_attachments(card_id: str) -> List[Dict]:
@@ -236,10 +302,10 @@ def extract_images(row: pd.Series) -> List[str]:
     ]
 
 def make_card_name(counter: int, prefix: str = "NTD", letter: str = "A") -> str:
-    """Format: NTD050626A01 — prefix + ddmmyy + letter + zero-padded counter."""
+    """Format: [NTD050626A01] — prefix + ddmmyy + letter + zero-padded counter."""
     date_str = datetime.now().strftime("%d%m%y")
     seq      = str(counter).zfill(2)   # 01→99 tự mở rộng khi ≥100
-    return f"{prefix}{date_str}{letter}{seq}"
+    return f"[{prefix}{date_str}{letter}{seq}]"
 
 def get_card_counter_start(board_id: str) -> int:
     """
@@ -249,43 +315,60 @@ def get_card_counter_start(board_id: str) -> int:
     - Board rỗng / không parse được → bắt đầu từ 1
     """
     today = datetime.now().strftime("%d%m%y")
+    info("Tính card counter bắt đầu dựa trên card cuối cùng trên board...")
     try:
-        lists = _get(f"/boards/{board_id}/lists", {"fields": "id"})
-        for lst in reversed(lists):
-            cards = _get(f"/lists/{lst['id']}/cards", {"fields": "name"})
-            if not cards:
-                continue
-            last_name = cards[-1]["name"]   # VD: NTD050626A256
-            m = re.match(r"[A-Z]+(\d{6})[A-Z](\d+)$", last_name)
-            if not m:
-                break
-            card_date    = m.group(1)        # 050626
-            card_counter = int(m.group(2))   # 256
-            if card_date == today:
-                return card_counter + 1      # tiếp tục: 257
-            else:
-                return 1                     # ngày mới: reset
+        last_name = get_latest_card(board_id)
+        if not last_name:
+            return 1
+
+        # lists = _get(f"/boards/{board_id}/lists", {"fields": "id"})
+        # for lst in reversed(lists):
+        #     cards = _get(f"/lists/{lst['id']}/cards", {"fields": "name"})
+        #     if not cards:
+        #         continue  # VD: NTD050626A256
+        m = re.match(r"\[[A-Z]+(\d{6})[A-Z](\d+)\]", last_name)
+        card_date    = m.group(1)        # 050626
+        card_counter = int(m.group(2))   # 256
+        if card_date == today:
+            return card_counter + 1      # tiếp tục: 257
+        else:
+            return 1                     # ngày mới: reset
     except Exception:
         pass
     return 1   # fallback
 
-def find_title_in_desc(desc: str) -> str:
-    """Lấy title từ dòng đầu description (format: **Title:** ...)."""
-    m = re.match(r"\*\*Title:\*\*\s*(.+)", desc or "")
+def find_title_in_name(name: str) -> str:
+    """Lấy title từ card name (format: [NTD120626A01] Title...)."""
+    m = re.match(r"^\[.*?\]\s*(.+)", name or "", re.DOTALL)
     return m.group(1).strip() if m else ""
 
 def build_description(row: pd.Series) -> str:
     parts = []
-    title = row.get("title") or row.get("listing_id", "")
-    if title:
-        parts.append(f"**Title:** {title}")
     if row.get("tags"):
-        parts.append(f"**Tags:** {row['tags']}")
-    etsy = row.get("etsy_url") or row.get("url", "")
-    if etsy:
-        parts.append(f"**Etsy URL:** {etsy}")
-    return "\n\n".join(parts)
+        parts.append(f"{row['tags']}")
+    return "\n\n".join(parts).strip()
 
+# ── Parse helpers ─────────────────────────────────────────────────────────────
+def build_new_desc(tags: Optional[str]) -> str:
+    """Chỉ còn tags, không có prefix 'Tags:', không có Title, không có Etsy URL."""
+    return tags.strip() if tags else ""
+
+def name_is_correct(name: str) -> bool:
+    """Card name đúng dạng [SKU] Title."""
+    return bool(re.match(r"^\[[A-Z]+\d{6}[A-Z]\d+\] .+", name))
+
+def desc_is_correct(desc: str) -> bool:
+    """
+    Description đúng nếu:
+    - Không chứa **Title:**
+    - Không chứa **Tags:**
+    - Không chứa **Etsy URL:**
+    """
+    return (
+        "**Title:**" not in (desc or "")
+        and "**Tags:**" not in (desc or "")
+        and "**Etsy URL:**" not in (desc or "")
+    )
 
 # ── Signal handler ────────────────────────────────────────────────────────────
 _interrupted = False
@@ -310,75 +393,131 @@ def startup_check(board_id: str, df: pd.DataFrame) -> int:
 
     Trả về index dòng trong df để bắt đầu upload (0 = từ đầu).
     """
+    total_listings = len(df)
+
+    # ── B1: Đếm cards theo list ───────────────────────────────────────────────
     info("Kiểm tra trạng thái board...")
-    total_cards = count_board_cards(board_id)
+    list_stats   = count_cards_per_list(board_id)
+    total_cards  = sum(s["card_count"] for s in list_stats)
+    shops        = df["shop_name"].unique().tolist()
+    
+    sep()
+    info(f"Board hiện có {len(list_stats)} List(s) active.")
+    info(f"Card mới nhất trên board: {get_latest_card(board_id)}")
 
     if total_cards == 0:
         info("Board rỗng — bắt đầu upload mới.")
-        return 0
+        sep()
+        start_idx = _confirm_and_get_start(0, total_listings)
+        return start_idx
 
-    total_listings = len(df)
-    print()
+    sep()
+
+    # Hiển thị breakdown + tính suggested dựa theo thứ tự CSV
+    info(f"Tìm thấy {total_cards} card (tổng {total_listings} listings), trong đó:")
+
+    # Map list_name → card_count từ Trello
+    trello_card_count = {s["name"]: s["card_count"] for s in list_stats}
+
+    # Tính cumulative theo đúng thứ tự shop trong CSV
+    running = 0
+    resume_suggestions = []  # [(shop_name, card_idx_in_shop, global_row)]
+
+    for shop_name in shops:
+        shop_total      = len(df[df["shop_name"] == shop_name])
+        cards_in_trello = trello_card_count.get(shop_name, 0)
+        print(f"  * {cards_in_trello} card trong List {shop_name} (tổng {shop_total} listings)")
+
+        #if cards_in_trello > 0:
+            # Dòng global để resume list này = running + cards_in_trello + 1
+        resume_row = running + cards_in_trello + 1  # 1-based
+        resume_suggestions.append((shop_name, cards_in_trello + 1, resume_row))
+
+        running += shop_total
+
+    sep()
+
+    # ── B2: Resume hay Reset ──────────────────────────────────────────────────
     ans = input(
         f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tìm thấy {total_cards} cards trên Trello (dòng thứ {total_cards + 1} trong file) (tổng {total_listings} listings). "
-        f"Resume? (Y/n): "
+        f"Tiếp tục upload(Y)/Reset(n): "
     ).strip().lower()
 
-    if ans != "n":
-        # Resume: tìm listing_id cuối cùng đã có trên Trello
-        resume_idx = find_resume_index(board_id, df)
-        info(f"Resume từ dòng {resume_idx + 3}/{total_listings} "
-             f"(listing_id={df.at[resume_idx, 'listing_id'] if resume_idx < total_listings else 'END'})")
-        
-        return resume_idx  # bắt đầu từ dòng KẾ TIẾP
+    if ans == "n":
+        # Reset: xác nhận xoá
+        confirm = input(
+            f"{ts()} {C.tag(C.ERROR, 'CONFIRM')} "
+            f"Xoá toàn bộ {total_cards} cards + {len(list_stats)} lists? (yes/no): "
+        ).strip().lower()
 
-    # Reset: xác nhận thêm lần nữa
-    confirm = input(
-        f"{ts()} {C.tag(C.ERROR, 'CONFIRM')} "
-        f"Xoá toàn bộ {total_cards} cards? (yes/no): "
+        if confirm != "yes":
+            info("Huỷ reset — thoát.")
+            sys.exit(0)
+
+        info(f"Đang xoá {total_cards} cards + archive lists...")
+        deleted = delete_all_board_cards_and_lists(board_id)
+        done(f"Đã xoá {deleted} cards.")
+        start_idx = 0
+
+    else:
+        # Resume: dùng suggested hoặc cho nhập tay
+        # Tính suggested = dòng tiếp theo sau card cuối cùng đã upload
+        suggested = 0
+        running   = 0
+        for shop_name in shops:
+            shop_total      = len(df[df["shop_name"] == shop_name])
+            cards_in_trello = trello_card_count.get(shop_name, 0)
+            if cards_in_trello == 0:
+                break
+            if cards_in_trello >= shop_total:
+                running   += shop_total
+                suggested  = running
+            else:
+                suggested = running + cards_in_trello
+                break
+
+        # Hiển thị gợi ý resume từng list
+        print()
+        info("Gợi ý resume:")
+        for shop_name, card_in_shop, global_row in resume_suggestions:
+            cards_done = card_in_shop - 1
+            print(f"  * resume list {shop_name} tại card {cards_done + 1} [nhập {global_row + 1}]")
+
+
+        custom = input(
+            f"{ts()} {C.tag(C.INFO, 'INFO')}  "
+            f"Nhập dòng bắt đầu [mặc định {suggested + 2}]: "
+        ).strip()
+
+        if custom.isdigit():
+            start_idx = int(custom) - 1  # convert sang 0-based
+        else:
+            start_idx = suggested
+
+        info(f"Sẽ bắt đầu từ dòng {start_idx + 1}/{total_listings}")
+
+    sep()
+
+    return start_idx - 1
+
+def _confirm_and_get_start(suggested: int, total: int) -> int:
+    """Dùng cho trường hợp board rỗng — vẫn cho phép chọn dòng bắt đầu."""
+    custom = input(
+        f"{ts()} {C.tag(C.INFO, 'INFO')}  "
+        f"Nhập dòng bắt đầu [mặc định 1]: "
+    ).strip()
+    start_idx = int(custom) - 1 if custom.isdigit() else 0
+
+    final = input(
+        f"{ts()} {C.tag(C.WARN, 'WARN')}  "
+        f"Tiếp tục upload từ dòng {start_idx + 2}/{total}? (Y/n): "
     ).strip().lower()
 
-    if confirm != "yes":
-        info("Huỷ reset — thoát.")
+    if final == "n":
+        info("Huỷ — thoát.")
         sys.exit(0)
 
-    info(f"Xoá toàn bộ {total_cards} cards + lists trên board...")
-    deleted = delete_all_board_cards_and_lists(board_id)
-    done(f"Đã xoá {deleted} cards.")
-    return 0
-
-
-def find_resume_index(board_id: str, df: pd.DataFrame) -> int:
-    """
-    Tìm index của listing cuối cùng đã upload lên Trello.
-    Fetch cards từ list cuối cùng trên board, so sánh title với df.
-    Trả về index đó trong df (để skip đến dòng tiếp theo).
-    """
-    lists = _get(f"/boards/{board_id}/lists", {"fields": "id,name"})
-    if not lists:
-        return 0
-
-    # Lấy list cuối cùng
-    last_list = lists[-1]
-    cards = _get(f"/lists/{last_list['id']}/cards", {"fields": "id,name"})
-    if not cards:
-        # List cuối rỗng → thử list trước
-        if len(lists) > 1:
-            cards = _get(f"/lists/{lists[-2]['id']}/cards", {"fields": "id,name"})
-
-    if not cards:
-        return 0
-
-    last_card_name = cards[-1]["name"]
-
-    # Tìm index trong df theo title
-    matches = df[df["title"] == last_card_name].index
-    if not matches.empty:
-        return int(matches[-1])
-
-    # Fallback: tìm gần đúng theo listing_id nếu title không khớp
-    return max(0, len(df) - len(cards) - 1)
+    return start_idx
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -406,42 +545,28 @@ def upload_to_trello(
     setup_signal()
     df = load_csv(csv_path)
 
-    # ── Startup check ─────────────────────────────────────────────────────────
+    # ── B1 → B3: Startup check ────────────────────────────────────────────────
     start_idx = startup_check(board_id, df)
 
-    # Fetch existing lists (sau khi startup_check vì có thể đã archive hết)
-    info("Fetching Lists trên board...")
-    existing_lists = fetch_existing_lists(board_id)
-    info(f"  Board hiện có {len(existing_lists)} List(s) active.")
-
-    existing_cards_cache: Dict[str, Dict] = {}
-    shops = df["shop_name"].unique().tolist()
-
-    ans = input(
+    # ── B3: Xác nhận lần cuối ────────────────────────────────────────────────
+    final = input(
         f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tiếp tục từ dòng {start_idx + 3}? (Y/n): "
+        f"Tiếp tục upload từ dòng {start_idx + 2}? (Y/n): "
     ).strip().lower()
 
-    if ans == "n":
-        start_idx = input(
-        f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Nhập dòng bắt đầu (1-based index, mặc định {start_idx + 3}): ")
-        start_idx = int(start_idx) - 3
-
-    info(f"Tổng {len(df)} listings | {len(shops)} shops |" 
-         f"Bắt đầu từ dòng {start_idx + 3}\n")
-
-    ans = input(
-        f"{ts()} {C.tag(C.WARN, 'WARN')}  "
-        f"Tiếp tục? (Y/n): "
-    ).strip().lower()
-
-    if ans == "n":
-        info("Huỷ upload — thoát.")
+    if final == "n":
+        info("Huỷ — thoát.")
         sys.exit(0)
 
+    existing_lists    = fetch_existing_lists(board_id)
+    existing_cards_cache: Dict[str, Dict] = {}
+    shops             = df["shop_name"].unique().tolist()
+    df_from           = df.iloc[start_idx:].copy()
+    card_counter = get_card_counter_start(board_id)
+
+    info(f"Tổng {len(df)} listings | Bắt đầu từ dòng {start_idx + 2}\n")
+
     df_from = df.iloc[start_idx + 1:].copy()
-    card_counter    = get_card_counter_start(board_id)
     cards_created   = 0
     cards_reattach  = 0
     cards_skipped   = 0
@@ -456,7 +581,14 @@ def upload_to_trello(
         if shop_rows.empty:
             continue
 
-        info(f"[{shop_idx}/{len(shops)}] {shop_name}  ({len(shop_rows)} listings)")
+         # Tính global row index của listing đầu tiên trong shop này
+        first_global_idx = start_idx + 2
+        last_global_idx  = start_idx + len(shop_rows) + 1
+
+        info(f"[{shop_idx}/{len(shops)}] List: {shop_name}  "
+             f"({last_global_idx - first_global_idx + 1} listings remaining | dòng {first_global_idx}–{last_global_idx})")
+        
+        time.sleep(1)  # nghỉ 1s trước khi xử lý list mới
 
         list_id = get_or_create_list(board_id, shop_name, existing_lists)
 
@@ -465,19 +597,20 @@ def upload_to_trello(
             existing_cards_cache[list_id] = fetch_cards_with_attachments(list_id)
         existing_cards = existing_cards_cache[list_id]
 
+
         for row_idx, (_, row) in enumerate(shop_rows.iterrows(), 1):
             if _interrupted:
                 break
 
             title      = row.get("title") or row.get("listing_id", f"listing_{row_idx}")
-            card_name  = make_card_name(card_counter)
+            card_name  = make_card_name(card_counter) + " " + title  # prefix + title (cắt bớt nếu dài)
             desc       = build_description(row)
             image_urls = extract_images(row)
 
-            # So sánh theo title trong description (không dùng card_name vì đổi mỗi ngày)
+            # So sánh theo title trong card_name
             matched_card = next(
                 (info_dict for existing_name, info_dict in existing_cards.items()
-                 if find_title_in_desc(info_dict.get("desc", "")) == title
+                 if find_title_in_name(existing_name) == title
                  or existing_name == title),  # fallback nếu card cũ chưa có title trong desc
                 None
             )
@@ -485,14 +618,17 @@ def upload_to_trello(
             if matched_card:
                 card_id   = matched_card["id"]
                 att_count = matched_card["attachment_count"]
+                desc_old  = matched_card["desc"]
+                desc_ok = desc_is_correct(desc_old) and desc_old == desc
 
-                if att_count > 0:
+                if att_count >= len(image_urls):
                     # Card đã có đủ attachment → skip
-                    skip(f"  [{row_idx}/{len(shop_rows)}] '{card_name}' '{title[:40]}' "
+                    skip(f"  [{row_idx}/{len(shop_rows)}] '{card_name[:60]}' "
                          f"— đã có {att_count} att, skip")
                     cards_skipped += 1
                 else:
                     # Card có nhưng thiếu attachment → re-attach
+                    delete_all_attachments(card_id)
                     attached = 0
                     for url in image_urls:
                         if attach_url(card_id, url):
@@ -501,8 +637,16 @@ def upload_to_trello(
                     attachments_total += attached
                     cards_reattach += 1
                     card_counter += 1
-                    upd(f"  [{row_idx}/{len(shop_rows)}] '{card_name}' '{title[:40]}' "
+                    upd(f"  [{row_idx}/{len(shop_rows)}] '{card_name[:60]}' "
                         f"— re-attach {attached}/{len(image_urls)} att")
+                    
+                if not desc_ok:
+                    if update_card(card_id, card_name, desc):
+                        upd(f"  [{row_idx}/{len(shop_rows)}] '{card_name[:60]}' "
+                        f"— update description SUCCESS")
+                    else:
+                        warn(f"  [{row_idx}/{len(shop_rows)}] '{card_name[:60]}' "
+                        f"— update description FAILED")
 
             else:
                 # Card chưa tồn tại → tạo mới
@@ -518,15 +662,46 @@ def upload_to_trello(
                     time.sleep(DELAY_ATTACHMENT)
 
                 attachments_total += attached
-                done(f"  [{row_idx}/{len(shop_rows)}] '{card_name}' '{title[:40]}' "
+                done(f"  [{row_idx}/{len(shop_rows)}] '{card_name[:60]}' "
                      f"— {attached}/{len(image_urls)} attachments")
 
             time.sleep(DELAY_CARD)
 
+        # ── Cuối mỗi list: hỏi có tiếp tục qua list tiếp theo ────────────────
+        if _interrupted:
+            break
+
+        # Kiểm tra còn list tiếp theo không
+        remaining_shops = [
+            s for s in shops[shop_idx:]
+            if not df_from[df_from["shop_name"] == s].empty
+        ]
+        if not remaining_shops:
+            break  # hết list, không cần hỏi
+
+        sep()
+        info(f"Hoàn thành List '{shop_name}'.")
+        info(f"Nghỉ {DELAY_BETWEEN_LISTS}s trước khi chuyển sang List '{remaining_shops[0]}'...")
+
+        # Đếm ngược
+        for remaining in range(DELAY_BETWEEN_LISTS, 0, -10):
+            print(f"  {remaining}s...", end="\r")
+            time.sleep(10)
+        print()
+
+        cont = input(
+            f"{ts()} {C.tag(C.WARN, 'WARN')}  "
+            f"Tiếp tục qua List '{remaining_shops[0]}'? (Y/n): "
+        ).strip().lower()
+
+        if cont == "n":
+            stop("Dừng theo yêu cầu.")
+            break
+
         print()
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    print("─" * 60)
+    sep()
     done("Upload hoàn tất!")
     info(f"  Cards tạo mới    : {cards_created}")
     info(f"  Cards re-attach  : {cards_reattach}")
