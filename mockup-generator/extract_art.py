@@ -1,295 +1,323 @@
 """
-extract_art.py
-──────────────
-Tách art từ ảnh áo thun → transparent background PNG.
+extract_art.py — Tách art từ ảnh mockup áo
+==========================================
+Pipeline:
+  1. Đọc heyetsy_image_urls.csv → lấy image_1 URL + metadata
+  2. Download ảnh về local (temp)
+  3. Hiển thị ảnh + kích thước → user nhập tọa độ crop (x, y, w, h)
+  4. Crop vùng art
+  5. rembg remove background vùng đã crop
+  6. Lưu PNG transparent → extracted_art/{listing_id}_art.png
+  7. Lưu log crop tọa độ → crop_coords.csv (để batch sau)
 
-Flow:
-  1. Đọc image_1 URL từ heyetsy_image_urls.csv
-  2. Download ảnh + hiển thị kích thước để user xác định tọa độ crop
-  3. User nhập x, y, w, h để crop vùng art
-  4. Gửi vùng crop lên Bria AI RMBG-2.0 (qua Replicate) để remove background (có thế thay thế bằng rembg)
-  5. Lưu kết quả PNG transparent vào thư mục output
-
-Yêu cầu:
-  pip install requests pillow replicate
-  REPLICATE_API_TOKEN = "r8_..."  (https://replicate.com/account/api-tokens)
+Cài đặt:
+  pip install rembg pillow requests pandas
+  hoặc: uv add rembg pillow requests pandas
 """
 
 import os
+import re
 import sys
-import io
 import time
+import csv
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Tuple, Dict, List
+
 import requests
-import replicate
 import pandas as pd
 from PIL import Image
-from datetime import datetime
-from typing import Optional, Tuple
+from io import BytesIO
+
+try:
+    from rembg import remove, new_session
+    REMBG_AVAILABLE = True
+except ImportError:
+    REMBG_AVAILABLE = False
+    print("[WARN] rembg chưa cài — chạy: pip install rembg")
 
 # ── ANSI color logging ────────────────────────────────────────────────────────
 class C:
-    INFO  = "\033[94m"
-    WARN  = "\033[93m"
-    DONE  = "\033[92m"
-    ERROR = "\033[91m"
-    TIME  = "\033[96m"
-    INPUT = "\033[93m"
-    RESET = "\033[0m"
+    INFO  = "\033[94m"; WARN = "\033[93m"; CKPT = "\033[92m"
+    ERROR = "\033[91m"; TIME = "\033[96m"; DONE = "\033[92m"; RESET = "\033[0m"
 
     @staticmethod
-    def tag(color, label):
-        return f"{color}[{label}]{C.RESET}"
+    def tag(color, label): return f"{color}[{label}]{C.RESET}"
 
-def ts():
-    return C.tag(C.TIME, datetime.now().strftime("%H:%M:%S"))
-
-def info(msg):  print(f"{ts()} {C.tag(C.INFO,  'INFO')}  {msg}")
-def warn(msg):  print(f"{ts()} {C.tag(C.WARN,  'WARN')}  {msg}")
-def done(msg):  print(f"{ts()} {C.tag(C.DONE,  'DONE')}  {msg}")
-def err(msg):   print(f"{ts()} {C.tag(C.ERROR, 'ERROR')} {msg}")
-def sep():      print("─" * 60)
+def ts():    return C.tag(C.TIME, datetime.now().strftime("%H:%M:%S"))
+def info(m): print(f"{ts()} {C.tag(C.INFO,  'INFO')}  {m}")
+def warn(m): print(f"{ts()} {C.tag(C.WARN,  'WARN')}  {m}")
+def done(m): print(f"{ts()} {C.tag(C.DONE,  'DONE')}  {m}")
+def err(m):  print(f"{ts()} {C.tag(C.ERROR, 'ERROR')} {m}")
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN", "")
+INPUT_CSV   = "heyetsy_image_urls.csv"
+OUTPUT_DIR  = Path("extracted_art")
+PREVIEW_DIR = Path("extracted_art/previews")   # crop preview trước khi remove bg
+CROP_LOG    = "crop_coords.csv"                # lưu tọa độ để batch sau
+LIMIT       = 5                                # số listing test (None = tất cả)
 
-INPUT_CSV    = "heyetsy_image_urls.csv"
-OUTPUT_DIR   = "extracted_art"
-PREVIEW_DIR  = "extracted_art/preview"  # lưu ảnh crop trước khi remove bg
+# rembg model — isnet-general-use tốt nhất cho art/logo
+REMBG_MODEL = "isnet-general-use"
 
-# Replicate model: Bria RMBG-2.0
-REPLICATE_MODEL = "bria-ai/rmbg-2.0"
-
-# Số listing test (None = tất cả)
-TEST_LIMIT = 5
-
-
-# ── CSV helpers ───────────────────────────────────────────────────────────────
-def load_csv(csv_path: str) -> pd.DataFrame:
-    for enc in ("utf-8-sig", "cp1252", "utf-8", "latin-1"):
-        try:
-            df = pd.read_csv(
-                csv_path, dtype=str, sep=None,
-                engine="python", encoding=enc
-            ).fillna("")
-            info(f"Loaded {len(df)} rows từ {csv_path} (encoding={enc})")
-            return df
-        except UnicodeDecodeError:
-            if enc == "latin-1":
-                raise
-            continue
-    raise RuntimeError(f"Không đọc được {csv_path}")
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+}
 
 
-# ── Image helpers ─────────────────────────────────────────────────────────────
-def download_image(url: str, timeout: int = 15) -> Optional[Image.Image]:
+# ── Setup ─────────────────────────────────────────────────────────────────────
+def setup_dirs():
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    PREVIEW_DIR.mkdir(exist_ok=True)
+
+
+# ── Download ảnh ──────────────────────────────────────────────────────────────
+def download_image(url: str) -> Optional[Image.Image]:
     """Download ảnh từ URL → PIL Image."""
     try:
-        resp = requests.get(url, timeout=timeout, stream=True)
-        resp.raise_for_status()
-        return Image.open(io.BytesIO(resp.content)).convert("RGBA")
+        r = requests.get(url, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+        return Image.open(BytesIO(r.content)).convert("RGBA")
     except Exception as e:
-        err(f"Download thất bại ({url[:60]}): {e}")
+        err(f"Download lỗi: {e}")
         return None
 
-def save_image(img: Image.Image, path: str) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    img.save(path)
 
-def crop_image(img: Image.Image, x: int, y: int, w: int, h: int) -> Image.Image:
-    """Crop vùng (x, y, x+w, y+h) từ ảnh."""
-    W, H = img.size
-    x1 = max(0, x)
-    y1 = max(0, y)
-    x2 = min(W, x + w)
-    y2 = min(H, y + h)
-    return img.crop((x1, y1, x2, y2))
-
-
-# ── Crop input ────────────────────────────────────────────────────────────────
+# ── Crop helpers ──────────────────────────────────────────────────────────────
 def prompt_crop(img: Image.Image, listing_id: str) -> Optional[Tuple[int,int,int,int]]:
     """
-    Hiển thị kích thước ảnh và hỏi user nhập tọa độ crop.
-    Trả về (x, y, w, h) hoặc None nếu skip.
+    Hiển thị kích thước ảnh, user nhập tọa độ crop.
+    Format: x y w h (cách nhau bằng space)
+    Nhập 's' để skip listing này.
+    Nhập 'q' để quit.
     """
     W, H = img.size
-    sep()
-    info(f"Listing: {listing_id}")
-    info(f"Kích thước ảnh: {W} x {H} px")
-    print(f"\n  Tọa độ (0,0) = góc trên trái")
-    print(f"  x = cách trái, y = cách trên, w = chiều rộng, h = chiều cao")
-    print(f"  VD: x=100 y=150 w=400 h=400  (crop vùng art giữa áo)\n")
+    print(f"\n  Ảnh: {W} x {H} px  (listing_id: {listing_id})")
+    print(f"  Nhập tọa độ crop: x y w h  (góc trên trái + width height)")
+    print(f"  VD: 100 80 300 300  |  's' = skip  |  'q' = quit")
 
-    raw = input(
-        f"  {C.tag(C.INPUT, 'INPUT')} Nhập x y w h (cách nhau dấu cách) "
-        f"hoặc 's' để skip: "
-    ).strip()
-
-    if raw.lower() == "s":
-        warn(f"  Skip listing {listing_id}")
-        return None
-
-    parts = raw.split()
-    if len(parts) != 4:
-        err("  Cần đúng 4 số: x y w h")
-        return None
-
-    try:
-        x, y, w, h = [int(p) for p in parts]
-        if w <= 0 or h <= 0:
-            err("  w và h phải > 0")
+    while True:
+        raw = input("  > ").strip().lower()
+        if raw == "q":
+            sys.exit(0)
+        if raw == "s":
             return None
-        return x, y, w, h
-    except ValueError:
-        err("  Nhập không hợp lệ — cần số nguyên")
-        return None
+        parts = raw.split()
+        if len(parts) == 4:
+            try:
+                x, y, w, h = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+                # Validate trong bounds ảnh
+                if x < 0 or y < 0 or x + w > W or y + h > H:
+                    print(f"  [WARN] Tọa độ vượt ra ngoài ảnh ({W}x{H}), nhập lại.")
+                    continue
+                return x, y, w, h
+            except ValueError:
+                pass
+        print("  [WARN] Format sai. VD: 100 80 300 300")
+
+def crop_image(img: Image.Image, coords: Tuple[int,int,int,int]) -> Image.Image:
+    """Crop ảnh theo (x, y, w, h) → PIL Image."""
+    x, y, w, h = coords
+    return img.crop((x, y, x + w, y + h))
 
 
-# ── Replicate: remove background ─────────────────────────────────────────────
-def remove_background_replicate(img: Image.Image) -> Optional[Image.Image]:
+# ── rembg remove background ───────────────────────────────────────────────────
+def remove_background(img: Image.Image, session) -> Image.Image:
     """
-    Gửi ảnh lên Bria RMBG-2.0 qua Replicate để remove background.
-    Trả về PIL Image với transparent background (RGBA).
+    Dùng rembg remove background.
+    Input: PIL Image (vùng đã crop)
+    Output: PIL Image RGBA (transparent background)
     """
-    if not REPLICATE_API_TOKEN:
-        err("Chưa set REPLICATE_API_TOKEN!")
-        return None
-
-    os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
-
-    # Convert PIL Image → bytes để gửi lên API
-    buf = io.BytesIO()
-    img.convert("RGB").save(buf, format="PNG")
+    # Convert sang bytes để rembg xử lý
+    buf = BytesIO()
+    img.save(buf, format="PNG")
     buf.seek(0)
+    result_bytes = remove(buf.read(), session=session)
+    return Image.open(BytesIO(result_bytes)).convert("RGBA")
 
+
+# ── Crop log ──────────────────────────────────────────────────────────────────
+def load_crop_log() -> Dict[str, Tuple[int,int,int,int]]:
+    """Load tọa độ crop đã lưu từ lần trước."""
+    if not os.path.exists(CROP_LOG):
+        return {}
+    coords = {}
     try:
-        info("  Gửi lên Replicate (Bria RMBG-2.0)...")
-        output = replicate.run(
-            REPLICATE_MODEL,
-            input={"image": buf}
-        )
-
-        # Output là URL của ảnh đã remove bg
-        if isinstance(output, str):
-            result_url = output
-        elif hasattr(output, "url"):
-            result_url = output.url
-        else:
-            result_url = str(output)
-
-        info(f"  Download kết quả từ Replicate...")
-        resp = requests.get(result_url, timeout=30)
-        resp.raise_for_status()
-        result_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-        return result_img
-
+        df = pd.read_csv(CROP_LOG, dtype=str).fillna("")
+        for _, row in df.iterrows():
+            lid = row.get("listing_id", "")
+            if lid:
+                coords[lid] = (
+                    int(row.get("x", 0)), int(row.get("y", 0)),
+                    int(row.get("w", 0)), int(row.get("h", 0)),
+                )
     except Exception as e:
-        err(f"  Replicate thất bại: {e}")
-        return None
+        warn(f"Không đọc được crop log: {e}")
+    return coords
+
+def save_crop_log(coords_map: Dict[str, Tuple[int,int,int,int]]):
+    """Lưu tọa độ crop vào CSV."""
+    rows = [
+        {"listing_id": lid, "x": c[0], "y": c[1], "w": c[2], "h": c[3]}
+        for lid, c in coords_map.items()
+    ]
+    pd.DataFrame(rows).to_csv(CROP_LOG, index=False, encoding="utf-8-sig")
+    done(f"Crop coords saved → {CROP_LOG}")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-def run(
-    csv_path:   str = INPUT_CSV,
-    output_dir: str = OUTPUT_DIR,
-    limit:      int = TEST_LIMIT,
-) -> None:
-    if not REPLICATE_API_TOKEN:
-        err("Chưa set REPLICATE_API_TOKEN!")
-        err("Lấy token tại: https://replicate.com/account/api-tokens")
-        err("Sau đó set: REPLICATE_API_TOKEN=r8_... trong environment hoặc trong file này")
-        sys.exit(1)
+# ── Load input CSV ────────────────────────────────────────────────────────────
+def load_listings(csv_path: str, limit: Optional[int] = None) -> List[Dict]:
+    """
+    Đọc heyetsy_image_urls.csv.
+    Lấy: listing_id, shop_name, title, image_1 (URL ảnh đầu tiên).
+    """
+    df = pd.read_csv(csv_path, dtype=str).fillna("")
 
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(PREVIEW_DIR, exist_ok=True)
+    required = {"listing_id", "image_1"}
+    missing  = required - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV thiếu cột: {missing}")
 
-    df = load_csv(csv_path)
-
-    # Lọc dòng có image_1
-    if "image_1" in df.columns:
-        df = df[df["image_1"] != ""].reset_index(drop=True)
+    # Chỉ lấy dòng có image_1
+    df = df[df["image_1"] != ""]
 
     if limit:
         df = df.head(limit)
 
-    info(f"Sẽ xử lý {len(df)} listings (limit={limit})")
+    records = df.to_dict("records")
+    info(f"Loaded {len(records)} listings từ {csv_path}")
+    return records
 
-    success = 0
-    skipped = 0
-    failed  = 0
 
-    for i, (_, row) in enumerate(df.iterrows(), 1):
-        lid      = row.get("listing_id", f"listing_{i}")
-        img_url  = row.get("image_1", "")
-        shop     = row.get("shop_name", "")
+# ── Main pipeline ─────────────────────────────────────────────────────────────
+def extract_art(
+    csv_path:   str  = INPUT_CSV,
+    output_dir: Path = OUTPUT_DIR,
+    limit:      Optional[int] = LIMIT,
+    batch_mode: bool = False,   # True: dùng tọa độ từ crop_log, không hỏi
+):
+    """
+    Entry point.
+    batch_mode=False: hỏi tọa độ từng listing (interactive)
+    batch_mode=True:  dùng tọa độ đã lưu trong crop_coords.csv
+    """
+    if not REMBG_AVAILABLE:
+        err("rembg chưa cài. Chạy: pip install rembg")
+        sys.exit(1)
 
-        if not img_url:
-            warn(f"[{i}/{len(df)}] {lid} — không có image_1, skip")
-            skipped += 1
+    setup_dirs()
+
+    listings   = load_listings(csv_path, limit)
+    crop_log   = load_crop_log()
+    session    = new_session(REMBG_MODEL)
+    coords_map = dict(crop_log)   # copy để update
+
+    info(f"rembg model: {REMBG_MODEL}")
+    info(f"Mode: {'batch' if batch_mode else 'interactive'}")
+    if batch_mode:
+        info(f"Loaded {len(crop_log)} tọa độ từ {CROP_LOG}")
+
+    results = []
+
+    for i, row in enumerate(listings, 1):
+        lid       = row["listing_id"]
+        shop      = row.get("shop_name", "")
+        title     = row.get("title", "")[:50]
+        image_url = row["image_1"]
+        out_path  = output_dir / f"{lid}_art.png"
+
+        print(f"\n{'─'*55}")
+        info(f"[{i}/{len(listings)}] {lid}  shop={shop}")
+        info(f"  Title: {title}")
+
+        # Skip nếu đã có output
+        if out_path.exists():
+            warn(f"  Đã có {out_path.name} — skip")
+            results.append({"listing_id": lid, "status": "skipped", "output": str(out_path)})
             continue
-
-        sep()
-        info(f"[{i}/{len(df)}] listing={lid}  shop={shop}")
-        info(f"  URL: {img_url[:80]}")
 
         # Download ảnh
-        img = download_image(img_url)
+        info(f"  Download: {image_url[:60]}...")
+        img = download_image(image_url)
         if img is None:
-            failed += 1
+            results.append({"listing_id": lid, "status": "download_failed", "output": ""})
             continue
 
-        # User nhập tọa độ crop
-        crop_coords = prompt_crop(img, lid)
-        if crop_coords is None:
-            skipped += 1
+        # Lấy tọa độ crop
+        if batch_mode and lid in coords_map:
+            coords = coords_map[lid]
+            info(f"  Dùng tọa độ đã lưu: {coords}")
+        elif batch_mode:
+            warn(f"  Không có tọa độ cho {lid} trong batch mode — skip")
+            results.append({"listing_id": lid, "status": "no_coords", "output": ""})
             continue
-
-        x, y, w, h = crop_coords
+        else:
+            # Interactive: hiển thị + hỏi user
+            coords = prompt_crop(img, lid)
+            if coords is None:
+                warn(f"  Skipped bởi user.")
+                results.append({"listing_id": lid, "status": "skipped_by_user", "output": ""})
+                continue
+            coords_map[lid] = coords
 
         # Crop
-        cropped = crop_image(img, x, y, w, h)
-        info(f"  Crop: ({x},{y}) {w}x{h} → {cropped.size[0]}x{cropped.size[1]} px")
+        cropped = crop_image(img, coords)
 
-        # Lưu preview crop
-        preview_path = os.path.join(PREVIEW_DIR, f"{lid}_crop.png")
-        save_image(cropped, preview_path)
-        info(f"  Preview saved → {preview_path}")
+        # Lưu preview crop để kiểm tra trước khi remove bg
+        preview_path = PREVIEW_DIR / f"{lid}_crop_preview.png"
+        cropped.save(preview_path)
+        info(f"  Preview crop: {preview_path}")
 
-        # Xác nhận trước khi gửi API
-        confirm = input(
-            f"  {C.tag(C.INPUT, 'INPUT')} Gửi lên Replicate để remove background? (Y/n): "
-        ).strip().lower()
-
-        if confirm == "n":
-            warn("  Bỏ qua bước remove background.")
-            skipped += 1
-            continue
+        # Xác nhận trước khi remove bg
+        if not batch_mode:
+            confirm = input("  Remove background? (Enter=yes / 's'=skip): ").strip().lower()
+            if confirm == "s":
+                results.append({"listing_id": lid, "status": "skipped_rembg", "output": ""})
+                continue
 
         # Remove background
-        result = remove_background_replicate(cropped)
-        if result is None:
-            failed += 1
-            continue
+        info(f"  rembg đang xử lý...")
+        t0     = time.time()
+        result = remove_background(cropped, session)
+        elapsed = time.time() - t0
+        done(f"  Remove bg xong ({elapsed:.1f}s) → {out_path.name}")
 
-        # Lưu kết quả
-        out_path = os.path.join(output_dir, f"{lid}_art.png")
-        save_image(result, out_path)
-        done(f"  Saved → {out_path}")
-        success += 1
+        # Lưu output
+        result.save(out_path, format="PNG")
+        results.append({"listing_id": lid, "status": "done", "output": str(out_path)})
 
-        # Nghỉ ngắn giữa các API call
-        time.sleep(0.5)
+    # Lưu crop log
+    save_crop_log(coords_map)
 
     # Summary
-    sep()
-    done("Hoàn tất!")
-    info(f"  Thành công  : {success}")
-    info(f"  Skipped     : {skipped}")
-    info(f"  Thất bại    : {failed}")
-    info(f"  Output dir  : {os.path.abspath(output_dir)}")
-    sep()
+    print(f"\n{'═'*55}")
+    total   = len(results)
+    success = sum(1 for r in results if r["status"] == "done")
+    skipped = sum(1 for r in results if "skip" in r["status"])
+    failed  = total - success - skipped
+    done(f"Tổng: {total}  ✓ {success}  ⟳ {skipped}  ✗ {failed}")
+    done(f"Output: {output_dir}/")
+
+    return pd.DataFrame(results)
 
 
 # ── __main__ ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    run()
+    import argparse
+    parser = argparse.ArgumentParser(description="Tách art từ ảnh mockup áo bằng rembg")
+    parser.add_argument("--csv",    default=INPUT_CSV,  help="CSV input (default: heyetsy_image_urls.csv)")
+    parser.add_argument("--limit",  type=int, default=LIMIT, help="Số listing test (default: 5)")
+    parser.add_argument("--batch",  action="store_true", help="Batch mode: dùng tọa độ từ crop_coords.csv")
+    parser.add_argument("--all",    action="store_true", help="Chạy tất cả (bỏ qua LIMIT)")
+    args = parser.parse_args()
+
+    limit = None if args.all else args.limit
+
+    df = extract_art(
+        csv_path   = args.csv,
+        limit      = limit,
+        batch_mode = args.batch,
+    )
+
+    print(df.to_string(index=False))

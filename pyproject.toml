@@ -7,10 +7,13 @@ requires-python = ">=3.12"
 dependencies = [
     "bs4>=0.0.2",
     "lxml>=6.0.2",
+    "onnxruntime>=1.26.0",
+    "opencv-python>=4.13.0.92",
     "openpyxl>=3.1.5",
     "pandas>=3.0.2",
     "psycopg>=3.3.3",
     "pyarrow>=23.0.1",
+    "rembg[cpu,gpu]>=2.0.76",
     "replicate>=1.0.7",
     "requests>=2.33.1",
     "selenium>=4.44.0",
