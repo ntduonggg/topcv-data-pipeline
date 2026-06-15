@@ -1,39 +1,44 @@
-# TopCV Job Scraper & Data Pipeline
+# Web Scrapers & Data Pipeline
+
+A multi-project Python monorepo covering job-market data collection, Etsy product research, and mockup art extraction — with Docker-based ingestion and Trello integration.
+
+---
+
+## Projects
+
+| Project | Folder | Description |
+|---|---|---|
+| TopCV Job Scraper | `job-scraper/` | Scrapes Data Engineer jobs from TopCV into PostgreSQL |
+| HeyEtsy & Everbee Scraper | `product-scraper/` | Collects Etsy listing data, images, tags, and reviews |
+| Mockup Generator | `mockup-generator/` | Extracts and processes artwork from product mockup images |
+
+---
+
+## Project 1 — TopCV Job Scraper & Data Pipeline
 
 Scraping Data Engineer job listings from TopCV, cleaning the data, and ingesting it into PostgreSQL — fully containerised with Docker.
 
----
-
-## 1) Business Context
+### Business Context
 
 The goal is to collect Data Engineer job postings from TopCV (Vietnam's largest job platform), store them in a structured PostgreSQL database, and make them available for analysis. The pipeline handles scraping, data cleaning, encoding issues with Vietnamese text, and automated ingestion — all running inside Docker containers connected via a shared network.
 
----
-
-## 2) What This Repo Contains
+### Repo Structure
 
 ```
-web-scrapers/
-├── job-scraper/
-│   ├── topcv_data_scraper.py       # scrapes job listings from TopCV
-│   ├── topcv_scraper.py            # scraper utilities
-│   └── topcv_job_urls.csv          # collected job URLs
-├── data-ingestion/
-│   └── ingest_data.py              # cleans and ingests CSV into PostgreSQL
-├── data-files/
-│   ├── topcv_data_jobs.csv         # raw scraped data
-│   └── topcv_data_jobs.xlsx        # Excel version
-├── Dockerfile                      # builds the pipeline image
-├── pyproject.toml                  # dependencies managed by uv
-├── uv.lock
-└── .python-version
+job-scraper/
+├── topcv_data_scraper.py       # scrapes job listings from TopCV
+├── topcv_scraper.py            # scraper utilities
+└── topcv_job_urls.csv          # collected job URLs
+data-ingestion/
+└── ingest_data.py              # cleans and ingests CSV into PostgreSQL
+data-files/
+├── topcv_data_jobs.csv         # raw scraped data
+└── topcv_data_jobs.xlsx        # Excel version
+Dockerfile                      # builds the pipeline image
+pyproject.toml                  # dependencies managed by uv
 ```
 
----
-
-## 3) Data Collected
-
-Each job listing captures the following fields:
+### Data Collected
 
 | Column | Description |
 |---|---|
@@ -58,9 +63,7 @@ Each job listing captures the following fields:
 | `company_address` | Company address |
 | `company_description` | About the company |
 
----
-
-## 4) Technical Challenges & Solutions
+### Technical Challenges & Solutions
 
 - **Vietnamese text encoding** — `charmap` codec errors when reading/writing Vietnamese characters. Solution: always use `encoding="utf-8"` for file I/O and `encoding="utf-8-sig"` for CSV exports.
 - **Mixed date formats** — deadline field stored as string (`DD/MM/YYYY`). Solution: cast to `DATE` in PostgreSQL after ingestion using `TO_DATE(deadline, 'DD/MM/YYYY')`.
@@ -69,9 +72,7 @@ Each job listing captures the following fields:
 - **psycopg vs psycopg2** — `psycopg` (v3) requires `libpq-dev` and `gcc` on slim images. Solution: added system dependencies in Dockerfile and used `postgresql+psycopg://` connection string.
 - **Hardcoded credentials overriding CLI args** — click arguments were being ignored due to hardcoded values in the function body. Solution: removed hardcoded variables and relied solely on click-passed arguments.
 
----
-
-## 5) Tech Stack
+### Tech Stack
 
 - **Language:** Python 3.13
 - **Scraping:** BeautifulSoup4, Requests
@@ -82,21 +83,15 @@ Each job listing captures the following fields:
 - **Package manager:** uv
 - **Containerisation:** Docker
 
----
+### How to Run
 
-## 6) How to Run / Reproduce
+**Prerequisites:** Docker Desktop, uv (`pip install uv`)
 
-### Prerequisites
-- Docker Desktop installed and running
-- uv installed (`pip install uv`)
-
-### Step 1 — Create the Docker network
 ```bash
+# 1 — Create Docker network
 docker network create pg-network
-```
 
-### Step 2 — Start PostgreSQL container
-```bash
+# 2 — Start PostgreSQL
 docker run -it --rm \
   --network=pg-network \
   --name=pgdatabase \
@@ -105,15 +100,11 @@ docker run -it --rm \
   -e POSTGRES_DB="topcv_data" \
   -p 5432:5432 \
   postgres:18
-```
 
-### Step 3 — Build the pipeline image
-```bash
+# 3 — Build the pipeline image
 docker build -t topcv_pipeline:v001 .
-```
 
-### Step 4 — Run the pipeline
-```bash
+# 4 — Run the pipeline
 docker run -it \
   --network=pg-network \
   topcv_pipeline:v001 \
@@ -123,54 +114,15 @@ docker run -it \
   --pg-port=5432 \
   --pg-db=topcv_data \
   --target-table=data_engineer_job
-```
 
-### Step 5 — Verify in pgcli
-```bash
+# 5 — Verify
 uv run pgcli postgresql://root:root@localhost:5432/topcv_data
 ```
 ```sql
 SELECT * FROM data_engineer_job LIMIT 5;
 ```
 
----
-
-## 7) Future Features & Roadmap
-
-### Job Roles Expansion
-- **Backend Engineer jobs** — expand scraping to Backend Engineer roles to compare required skills (Java, Node.js, Go) against Data Engineer demand
-- **Frontend Engineer jobs** — collect Frontend postings to track UI/UX technology trends (React, Vue, Angular) across the Vietnamese market
-- **Fullstack & Mobile roles** — include Fullstack, iOS, and Android listings for a complete picture of the tech hiring landscape
-- **DevOps & Cloud roles** — scrape DevOps, SRE, and Cloud Engineer jobs to benchmark infrastructure skill demand
-- **Multi-platform scraping** — extend beyond TopCV to ITviec, VietnamWorks, and LinkedIn for broader market coverage
-- **Unified jobs table** — store all roles in a single `fact_job_postings` table with a `role_category` column for cross-role comparison and analysis
-
-### Analysis & Reporting
-- **Salary analysis** — extract and normalise salary ranges into min/max numeric values for comparison across roles, locations, and companies
-- **Skill demand tracking** — parse `desc_yeucau` to extract and rank the most in-demand tools and technologies (SQL, Python, Spark, Airflow, etc.)
-- **Dashboard** — build an interactive dashboard with Metabase or Apache Superset connected to PostgreSQL for real-time job market insights
-- **Trend analysis** — track job posting volume over time to identify hiring trends by company, location, and experience level
-
-### Orchestration
-- **Apache Airflow** — schedule the scraper and ingestion pipeline as a DAG to run daily, with retries, alerting, and task dependencies
-- **Dagster or Prefect** — alternative modern orchestrators with built-in observability and data lineage tracking
-- **Incremental loading** — instead of full reload, only scrape and ingest new or updated job postings since the last run
-
-### Data Warehouse
-- **Dimensional modelling** — restructure the flat table into a star schema with `dim_company`, `dim_location`, `dim_skills`, and `fact_job_postings`
-- **dbt (data build tool)** — add a transformation layer on top of PostgreSQL to clean, model, and document data with version-controlled SQL
-- **BigQuery / Snowflake** — migrate from local PostgreSQL to a cloud data warehouse for scalability and analytics performance
-- **Data lake** — store raw scraped HTML/JSON in AWS S3 or Google Cloud Storage before processing, enabling full reprocessing without re-scraping
-
-### Data Quality
-- **Great Expectations** — add automated data quality checks (null rates, value ranges, schema validation) at each pipeline stage
-- **dbt tests** — add schema and custom tests directly in the dbt transformation layer
-
----
-
-## 8) Key Learnings
-
-
+### Key Learnings
 
 - Always use `utf-8` encoding when working with Vietnamese text — `charmap` errors are silent killers on Windows.
 - Docker containers communicate via container names on shared networks, not `localhost`.
@@ -178,3 +130,161 @@ SELECT * FROM data_engineer_job LIMIT 5;
 - `psycopg` (v3) needs system libraries on slim images; always add `libpq-dev` and `gcc` to the Dockerfile.
 - Click arguments are only useful if you don't override them with hardcoded values inside the function.
 - Use `psycopg2-binary` for simplicity in learning projects; switch to `psycopg` v3 for production/async workloads.
+
+---
+
+## Project 2 — HeyEtsy & Everbee Scraper
+
+Collects Etsy product listing data — images, tags, reviews, and sales analytics — from HeyEtsy and Everbee, then exports results to CSV/Excel and syncs to Trello.
+
+### What It Does
+
+| Script | Description |
+|---|---|
+| `heyetsy_image_scraper.py` | Scrapes listing image URLs from HeyEtsy using Selenium |
+| `heyetsy_image_v2_scraper.py` | Updated image scraper with improved pagination and retry logic |
+| `heyetsy_bulk_downloader.py` | Bulk-downloads listing images from collected URLs |
+| `heyetsy_tags_scraper.py` | Extracts product tags from HeyEtsy listing pages |
+| `everbee_data_scraper.py` | Scrapes product analytics (price, reviews, sales, favourites) from Everbee's virtual-scroll grid |
+| `everbee_api_scraper.py` | Pulls Everbee data via its internal API |
+| `everbee_api_shop_scraper.py` | Scrapes shop-level analytics from Everbee |
+| `etsy_review_scraper.py` | Collects buyer reviews from Etsy listing pages |
+| `etsy_check_hidden_listing.py` | Detects and flags hidden/removed Etsy listings |
+| `trello_uploader*.py` | Uploads listing data and images to Trello cards |
+| `csv_image_export.py` | Exports image URLs to CSV |
+| `image_excel_export.py` | Builds Excel reports with embedded images |
+
+### Data Collected (Everbee)
+
+| Column | Description |
+|---|---|
+| `shop_name` | Etsy shop name |
+| `price` | Listing price |
+| `total_reviews` | Total number of reviews |
+| `listing_age` | How old the listing is |
+| `total_favorites` | Number of times favourited |
+| `avg_reviews` | Average review score |
+| `total_views` | Total listing views |
+| `shop_age` | Shop age |
+| `total_shop_sales` | Total sales for the shop |
+| `category` | Product category |
+| `listing_type` | Physical / digital |
+
+### Technical Notes
+
+- Everbee uses a **MUI DataGrid virtual scroller** — standard pagination doesn't work. The scraper scrolls incrementally and deduplicates rows by tracking seen IDs.
+- Selenium is used with **Microsoft Edge** in headless mode; both HeyEtsy and Everbee require a logged-in browser session.
+- Checkpointing flushes to disk every N rows (`CHECKPOINT_EVERY`) to survive interruptions — resume picks up from the last saved row.
+- Trello upload uses the Trello REST API to create cards and attach image files per listing.
+
+### Tech Stack
+
+- **Scraping:** Selenium (Edge), BeautifulSoup4, Requests
+- **Data processing:** Pandas, openpyxl
+- **Integration:** Trello REST API
+- **Package manager:** uv
+
+---
+
+## Project 3 — Mockup Generator
+
+Extracts product artwork from Etsy shirt mockup images: crops the art region, removes the background, and saves transparent PNGs ready for re-use.
+
+### Pipeline
+
+```
+heyetsy_image_urls.csv
+        │
+        ▼
+annotate_crop.py          ← user marks crop regions interactively (OpenCV window)
+        │ crop_coords.csv
+        ▼
+extract_art.py            ← downloads images, crops, removes background (rembg)
+        │
+        ▼
+extracted_art/{id}_art.png   ← transparent PNG output
+extract_log.csv              ← per-listing result log
+```
+
+### Scripts
+
+| Script | Description |
+|---|---|
+| `annotate_crop.py` | Opens each listing image in an OpenCV window; user draws a bounding box over the art region; coordinates are saved to `crop_coords.csv` |
+| `extract_art.py` | Reads `crop_coords.csv`, downloads the source image, crops the art region, runs `rembg` to remove the background, saves a transparent PNG |
+| `remove_background.py` | Standalone background removal utility using `rembg` — can process a single file or a batch directory |
+
+### Output
+
+- `extracted_art/{listing_id}_art.png` — transparent PNG of the extracted artwork
+- `extracted_art/previews/` — pre-removal crop previews for inspection
+- `crop_coords.csv` — annotation log `(listing_id, x, y, w, h)`
+- `extract_log.csv` — per-listing processing result
+
+### Tech Stack
+
+- **Image processing:** OpenCV, Pillow
+- **Background removal:** rembg (ONNX Runtime, `u2net` model)
+- **Data I/O:** Pandas, Requests
+- **Package manager:** uv
+
+---
+
+## Repo-Level Structure
+
+```
+topcv-data-pipeline/
+├── job-scraper/              # TopCV job scraper
+├── data-ingestion/           # PostgreSQL ingestion
+├── data-files/               # Raw job data (CSV/XLSX)
+├── product-scraper/          # HeyEtsy & Everbee scrapers
+├── mockup-generator/         # Art extraction pipeline
+├── images/                   # Downloaded listing images
+├── extracted_art/            # Processed transparent PNGs
+├── docker-compose.yaml
+├── Dockerfile
+├── pyproject.toml            # uv-managed dependencies
+└── .python-version
+```
+
+## Shared Tech Stack
+
+| Layer | Tool |
+|---|---|
+| Language | Python 3.12+ |
+| Package manager | uv |
+| Scraping | Selenium, BeautifulSoup4, Requests |
+| Data processing | Pandas, openpyxl |
+| Image processing | OpenCV, Pillow, rembg |
+| Database | PostgreSQL 18 (Docker) |
+| Containerisation | Docker / Docker Compose |
+| Integration | Trello REST API |
+
+---
+
+## Future Roadmap
+
+### TopCV — Job Roles Expansion
+- Expand to Backend, Frontend, Fullstack, DevOps roles
+- Extend beyond TopCV to ITviec, VietnamWorks, LinkedIn
+- Unified `fact_job_postings` table with `role_category` column
+
+### TopCV — Analysis & Reporting
+- Salary normalisation into min/max numeric values
+- Skill demand tracking by parsing `desc_yeucau`
+- Interactive dashboard via Metabase or Apache Superset
+
+### TopCV — Orchestration & Data Warehouse
+- Apache Airflow DAG for daily incremental scraping
+- Star schema with `dim_company`, `dim_location`, `dim_skills`, `fact_job_postings`
+- dbt transformation layer + BigQuery/Snowflake migration
+
+### HeyEtsy & Everbee — Enhancements
+- Auto-login and session refresh for long scraping runs
+- Scheduled daily sync to keep listing data fresh
+- Keyword and trend analysis across collected tags
+
+### Mockup Generator — Enhancements
+- Batch annotation mode without manual bounding box input
+- AI-assisted crop detection to auto-locate art regions
+- Replicate API integration for higher-quality background removal
