@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import re
 import time
@@ -43,8 +44,9 @@ TRELLO_API_KEY  = os.abort("TRELLO_API_KEY not set in environment") if "TRELLO_A
 TRELLO_TOKEN    = os.abort("TRELLO_TOKEN not set in environment") if "TRELLO_TOKEN" not in os.environ else os.getenv("TRELLO_TOKEN")
 TRELLO_BOARD_ID = os.abort("TRELLO_BOARD_ID not set in environment") if "TRELLO_BOARD_ID" not in os.environ else os.getenv("TRELLO_BOARD_ID")
 
-INPUT_CSV = "heyetsy_image_urls.csv"
-#INPUT_CSV = "hidden_listings.csv"
+# INPUT_CSV = "heyetsy_image_urls.csv"
+# INPUT_CSV = "hidden_listings.csv"
+INPUT_CSV = Path("output/replace_mockup.csv")
 
 DELAY_CARD        = 0.3
 DELAY_ATTACHMENT  = 0.2
@@ -266,13 +268,50 @@ def delete_all_attachments(card_id: str) -> int:
         time.sleep(0.1)
     return deleted
 
+_MIME_MAP = {".png": "image/png", ".jpg": "image/jpeg",
+             ".jpeg": "image/jpeg", ".webp": "image/webp"}
+
+def _is_local(src: str) -> bool:
+    """True nếu src là đường dẫn file local (không bắt đầu bằng http/https)."""
+    return not src.startswith(("http://", "https://"))
+
 def attach_url(card_id: str, url: str) -> bool:
+    """Attach bằng URL (ảnh hosted trên web)."""
     try:
         _post(f"/cards/{card_id}/attachments", {"url": url})
         return True
     except requests.HTTPError as e:
-        warn(f"  Attachment thất bại ({url[:60]}...): {e}")
+        warn(f"  Attachment URL thất bại ({url[:70]}): {e}")
         return False
+
+def attach_file(card_id: str, file_path: Path) -> bool:
+    """Attach bằng upload file local qua multipart/form-data."""
+    if not file_path.exists():
+        warn(f"  File không tồn tại: {file_path}")
+        return False
+    mime = _MIME_MAP.get(file_path.suffix.lower(), "application/octet-stream")
+    try:
+        with open(file_path, "rb") as f:
+            resp = requests.post(
+                f"{TRELLO_BASE}/cards/{card_id}/attachments",
+                params=_auth(),
+                files={"file": (file_path.name, f, mime)},
+                timeout=120,
+            )
+        resp.raise_for_status()
+        return True
+    except requests.HTTPError as e:
+        warn(f"  Attachment file thất bại ({file_path.name}): {e}")
+        return False
+    except Exception as e:
+        warn(f"  Lỗi upload {file_path.name}: {e}")
+        return False
+
+def attach_image(card_id: str, src: str) -> bool:
+    """Tự động phát hiện local path hay URL rồi attach đúng cách."""
+    if _is_local(src):
+        return attach_file(card_id, Path(src))
+    return attach_url(card_id, src)
 
 
 # ── CSV helpers ───────────────────────────────────────────────────────────────
@@ -631,7 +670,7 @@ def upload_to_trello(
                     delete_all_attachments(card_id)
                     attached = 0
                     for url in image_urls:
-                        if attach_url(card_id, url):
+                        if attach_image(card_id, url):
                             attached += 1
                         time.sleep(DELAY_ATTACHMENT)
                     attachments_total += attached
@@ -657,7 +696,7 @@ def upload_to_trello(
 
                 attached = 0
                 for url in image_urls:
-                    if attach_url(card_id, url):
+                    if attach_image(card_id, url):
                         attached += 1
                     time.sleep(DELAY_ATTACHMENT)
 

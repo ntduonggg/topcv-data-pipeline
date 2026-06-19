@@ -83,8 +83,8 @@ def err(m):  print(f"{ts()} {C.tag(C.ERROR, 'ERROR')} {m}")
 # ── Config ────────────────────────────────────────────────────────────────────
 CROP_COORDS_CSV  = "crop_coords.csv"
 IMAGE_URLS_CSV   = "heyetsy_image_urls.csv"
-OUTPUT_DIR       = Path("extracted_art/arts_rembg2")
-PREVIEW_DIR      = Path("extracted_art/new_previews")
+OUTPUT_DIR       = Path("extracted_art/compare_model")
+PREVIEW_DIR      = Path("extracted_art/previews")
 EXTRACT_LOG      = "extract_log.csv"
 CHECKPOINT_EVERY = 50
 
@@ -362,6 +362,25 @@ def close_alpha_holes(img_rgba: Image.Image, iterations: int = 2) -> Image.Image
     return Image.fromarray(arr)
 
 
+def postprocess_colors(
+    img_rgba: Image.Image,
+    contrast: float = 1.2,
+    saturation: float = 1.2,
+) -> Image.Image:
+    """Tăng contrast/saturation cho output cuối — chỉ áp lên RGB, giữ nguyên alpha."""
+    if contrast == 1.0 and saturation == 1.0:
+        return img_rgba
+    alpha = img_rgba.getchannel("A")
+    rgb = img_rgba.convert("RGB")
+    if contrast != 1.0:
+        rgb = ImageEnhance.Contrast(rgb).enhance(contrast)
+    if saturation != 1.0:
+        rgb = ImageEnhance.Color(rgb).enhance(saturation)
+    result = rgb.convert("RGBA")
+    result.putalpha(alpha)
+    return result
+
+
 def postprocess_alpha(
     img_rgba: Image.Image,
     threshold: int = 15,
@@ -463,10 +482,11 @@ _TEXT_PROTECT_DEFAULTS = dict(
 PRESETS: Dict[str, Dict] = {
     "standard": dict(
         contrast=1, saturation=1, sharpness_percent=100,
-        alpha_matting_p1=False,
+        alpha_matting_p1=False, fg_threshold_p1=240, bg_threshold_p1=10, erode_size_p1=10,
         alpha_matting_p2=False,
         post_threshold=15, post_smooth=False,
-        post_despeckle=False, post_close_holes=False,
+        post_despeckle=False, post_close_holes=True,
+        post_contrast=1.15, post_saturation=1.2,
         **_TEXT_PROTECT_DEFAULTS,
     ),
     "enhanced": dict(
@@ -475,15 +495,17 @@ PRESETS: Dict[str, Dict] = {
         alpha_matting_p2=False,
         post_threshold=15, post_smooth=True, smooth_radius=1.0,
         post_despeckle=False, post_close_holes=False,
+        post_contrast=1.15, post_saturation=1.2,
         **_TEXT_PROTECT_DEFAULTS,
     ),
     "matting": dict(
         contrast=1.5, saturation=1.2, sharpness_percent=180,
-        alpha_matting_p1=True, fg_threshold_p1=240, bg_threshold_p1=10, erode_size_p1=10,
+        alpha_matting_p1=True, fg_threshold_p1=240, bg_threshold_p1=10, erode_size_p1=15,
         alpha_matting_p2=False,
         post_threshold=20, post_smooth=True, smooth_radius=1.5,
         post_despeckle=True, min_area=150,
         post_close_holes=True, close_iterations=2,
+        post_contrast=1.15, post_saturation=1.2,
         **_TEXT_PROTECT_DEFAULTS,
     ),
     "aggressive": dict(
@@ -493,6 +515,7 @@ PRESETS: Dict[str, Dict] = {
         post_threshold=25, post_smooth=True, smooth_radius=2.0,
         post_despeckle=True, min_area=300,
         post_close_holes=True, close_iterations=3,
+        post_contrast=1.15, post_saturation=1.2,
         **_TEXT_PROTECT_DEFAULTS,
     ),
 }
@@ -562,6 +585,13 @@ def run_two_pass_pipeline(
             text_dilate_px=cfg.get("text_dilate_px", 5),
             near_art_px=cfg.get("text_near_art_px", 30),
         )
+
+    # ── Post color enhancement (áp lên output cuối, giữ alpha) ───────────────
+    result = postprocess_colors(
+        result,
+        contrast=cfg.get("post_contrast", 1.0),
+        saturation=cfg.get("post_saturation", 1.0),
+    )
 
     return result
 

@@ -1,0 +1,1034 @@
+{
+    "single": {
+        "pose_A": {
+            "anchor": [
+                0.49,
+                0.49
+            ],
+            "scale": 0.42,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "blend_opacity": 0.25,
+            "shadow_opacity": 0.1,
+            "use_warp": false,
+            "warp_pts": null,
+            "rotation": 4,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.49,
+                        0.45
+                    ],
+                    "scale": 0.45,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.48,
+                        0.38
+                    ],
+                    "scale": 0.48,
+                    "scale_by": "width"
+                }
+            }
+        },
+        "pose_B": {
+            "anchor": [
+                0.50,
+                0.48
+            ],
+            "scale": 0.38,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "blend_opacity": 0.3,
+            "shadow_opacity": 0.2,
+            "rotation": 4,
+            "use_warp": true,
+            "warp_pts": [
+                [
+                    0.26,
+                    0.26
+                ],
+                [
+                    0.7,
+                    0.21
+                ],
+                [
+                    0.73,
+                    0.61
+                ],
+                [
+                    0.3,
+                    0.66
+                ]
+            ],
+            "shape_overrides": {
+                "landscape": {
+                    "anchor": [
+                        0.49,
+                        0.43
+                    ],
+                    "scale": 0.58,
+                    "use_warp": true,
+                    "warp_pts": [
+                        [
+                            0.26,
+                            0.26
+                        ],
+                        [
+                            0.7,
+                            0.21
+                        ],
+                        [
+                            0.74,
+                            0.59
+                        ],
+                        [
+                            0.3,
+                            0.64
+                        ]
+                    ]
+                }
+            }
+        },
+        "pose_C": {
+            "anchor": [
+                0.51,
+                0.56
+            ],
+            "scale": 0.35,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "blend_opacity": 0.07,
+            "shadow_opacity": 0.21,
+            "rotation": 3,
+            "use_warp": false,
+            "warp_pts": null,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.52,
+                        0.53
+                    ],
+                    "scale": 0.37,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.5,
+                        0.47
+                    ],
+                    "scale": 0.48,
+                    "scale_by": "width"
+                }
+            }
+        },
+        "pose_D": {
+            "anchor": [
+                0.47,
+                0.43
+            ],
+            "scale": 0.34,
+            "scale_by": "width",
+            "blend_mode": "screen",
+            "blend_opacity": 0.25,
+            "shadow_opacity": 0.1,
+            "rotation": 3,
+            "use_warp": false,
+            "warp_pts": null,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.49,
+                        0.42
+                    ],
+                    "scale": 0.4,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.48,
+                        0.32
+                    ],
+                    "scale": 0.4,
+                    "scale_by": "width"
+                }
+            }
+        },
+        "pose_E": {
+            "anchor": [
+                0.51,
+                0.50
+            ],
+            "scale": 0.36,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "blend_opacity": 0.22,
+            "shadow_opacity": 0,
+            "rotation": 3,
+            "use_warp": false,
+            "warp_pts": null,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.51,
+                        0.44
+                    ],
+                    "scale": 0.4,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.5,
+                        0.36
+                    ],
+                    "scale": 0.41,
+                    "scale_by": "width"
+                }
+            }
+        },
+        "pose_F": {
+            "anchor": [
+                0.49,
+                0.48
+            ],
+            "scale": 0.35,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "rotation": 3,
+            "blend_opacity": 0.82,
+            "shadow_opacity": 0.28,
+            "use_warp": true,
+            "warp_pts": [
+                [
+                    0.28,
+                    0.24
+                ],
+                [
+                    0.72,
+                    0.25
+                ],
+                [
+                    0.69,
+                    0.74
+                ],
+                [
+                    0.25,
+                    0.73
+                ]
+            ],
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.51,
+                        0.42
+                    ],
+                    "scale": 0.37,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.51,
+                        0.35
+                    ],
+                    "scale": 0.39,
+                    "use_warp": true,
+                    "warp_pts": [
+                        [
+                            0.3,
+                            0.24
+                        ],
+                        [
+                            0.67,
+                            0.25
+                        ],
+                        [
+                            0.66,
+                            0.62
+                        ],
+                        [
+                            0.29,
+                            0.61
+                        ]
+                    ]
+                }
+            }
+        },
+        "pose_G": {
+            "anchor": [
+                0.52,
+                0.50
+            ],
+            "scale": 0.40,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "rotation": 3,
+            "blend_opacity": 0.15,
+            "shadow_opacity": 0.25,
+            "use_warp": false,
+            "warp_pts": null,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.53,
+                        0.44
+                    ],
+                    "scale": 0.4,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.52,
+                        0.34
+                    ],
+                    "scale": 0.44,
+                    "scale_by": "width"
+                }
+            }
+        },
+        "pose_H": {
+            "anchor": [
+                0.48,
+                0.50
+            ],
+            "scale": 0.39,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "rotation": 3,
+            "blend_opacity": 0.15,
+            "shadow_opacity": 0.25,
+            "use_warp": false,
+            "warp_pts": null,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.49,
+                        0.44
+                    ],
+                    "scale": 0.4,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.48,
+                        0.34
+                    ],
+                    "scale": 0.44,
+                    "scale_by": "width"
+                }
+            }
+        },
+        "pose_I": {
+            "anchor": [
+                0.40,
+                0.46
+            ],
+            "scale": 0.36,
+            "scale_by": "width",
+            "blend_mode": "multiply",
+            "rotation": 3,
+            "blend_opacity": 0.28,
+            "shadow_opacity": 0.18,
+            "use_warp": false,
+            "warp_pts": null,
+            "shape_overrides": {
+                "portrait": {
+                    "anchor": [
+                        0.42,
+                        0.43
+                    ],
+                    "scale": 0.4,
+                    "scale_by": "height"
+                },
+                "landscape": {
+                    "anchor": [
+                        0.41,
+                        0.34
+                    ],
+                    "scale": 0.41,
+                    "scale_by": "width"
+                }
+            }
+        }
+    },
+    "sides": {
+        "sides_A": {
+            "config_front": {
+                "anchor": [
+                    0.39,
+                    0.3
+                ],
+                "scale": 0.15,
+                "scale_by": "width",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.03,
+                "use_warp": false,
+                "warp_pts": null
+            },
+            "config_back": {
+                "anchor": [
+                    0.74,
+                    0.36
+                ],
+                "scale": 0.32,
+                "scale_by": "width",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.01,
+                "use_warp": false,
+                "warp_pts": null
+            }
+        },
+        "sides_B": {
+            "config_front": {
+                "anchor": [
+                    0.32,
+                    0.27
+                ],
+                "scale": 0.18,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.15,
+                "use_warp": true,
+                "warp_pts": [
+                    [
+                        0.24,
+                        0.23
+                    ],
+                    [
+                        0.39,
+                        0.2
+                    ],
+                    [
+                        0.39,
+                        0.34
+                    ],
+                    [
+                        0.25,
+                        0.37
+                    ]
+                ]
+            },
+            "config_back": {
+                "anchor": [
+                    0.69,
+                    0.57
+                ],
+                "scale": 0.45,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.3,
+                "shadow_opacity": 0.2,
+                "use_warp": true,
+                "warp_pts": [
+                    [
+                        0.48,
+                        0.36
+                    ],
+                    [
+                        0.88,
+                        0.31
+                    ],
+                    [
+                        0.89,
+                        0.77
+                    ],
+                    [
+                        0.49,
+                        0.82
+                    ]
+                ]
+            }
+        },
+        "sides_C": {
+            "config_front": {
+                "anchor": [
+                    0.34,
+                    0.27
+                ],
+                "scale": 0.15,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.15,
+                "use_warp": false,
+                "warp_pts": null
+            },
+            "config_back": {
+                "anchor": [
+                    0.68,
+                    0.38
+                ],
+                "scale": 0.41,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.2,
+                "use_warp": false,
+                "warp_pts": null
+            }
+        },
+        "sides_D": {
+            "config_front": {
+                "anchor": [
+                    0.29,
+                    0.22
+                ],
+                "scale": 0.15,
+                "scale_by": "width",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.35,
+                "shadow_opacity": 0.15,
+                "use_warp": false,
+                "warp_pts": null
+            },
+            "config_back": {
+                "anchor": [
+                    0.69,
+                    0.43
+                ],
+                "scale": 0.34,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.25,
+                "use_warp": false,
+                "warp_pts": null
+            }
+        },
+        "sides_E": {
+            "config_front": {
+                "anchor": [
+                    0.28,
+                    0.75
+                ],
+                "scale": 0.15,
+                "scale_by": "width",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.35,
+                "shadow_opacity": 0.15,
+                "use_warp": false,
+                "warp_pts": null
+            },
+            "config_back": {
+                "anchor": [
+                    0.72,
+                    0.39
+                ],
+                "scale": 0.34,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.25,
+                "use_warp": false,
+                "warp_pts": null
+            }
+        },
+        "sides_F": {
+            "config_front": {
+                "anchor": [
+                    0.32,
+                    0.27
+                ],
+                "scale": 0.13,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.15,
+                "use_warp": false,
+                "warp_pts": null
+            },
+            "config_back": {
+                "anchor": [
+                    0.69,
+                    0.52
+                ],
+                "scale": 0.36,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.35,
+                "shadow_opacity": 0.2,
+                "use_warp": false,
+                "warp_pts": null
+            }
+        },
+        "sides_G": {
+            "config_front": {
+                "anchor": [
+                    0.27,
+                    0.2
+                ],
+                "scale": 0.13,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.15,
+                "shadow_opacity": 0.1,
+                "use_warp": true,
+                "warp_pts": [
+                    [
+                        0.23,
+                        0.15
+                    ],
+                    [
+                        0.32,
+                        0.15
+                    ],
+                    [
+                        0.32,
+                        0.26
+                    ],
+                    [
+                        0.23,
+                        0.25
+                    ]
+                ]
+            },
+            "config_back": {
+                "anchor": [
+                    0.67,
+                    0.38
+                ],
+                "scale": 0.4,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.1,
+                "shadow_opacity": 0.05,
+                "use_warp": true,
+                "warp_pts": [
+                    [
+                        0.51,
+                        0.23
+                    ],
+                    [
+                        0.8,
+                        0.25
+                    ],
+                    [
+                        0.79,
+                        0.61
+                    ],
+                    [
+                        0.5,
+                        0.6
+                    ]
+                ]
+            }
+        },
+        "sides_H": {
+            "config_front": {
+                "anchor": [
+                    0.27,
+                    0.8
+                ],
+                "scale": 0.12,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.15,
+                "use_warp": false,
+                "warp_pts": null
+            },
+            "config_back": {
+                "anchor": [
+                    0.59,
+                    0.41
+                ],
+                "scale": 0.39,
+                "scale_by": "height",
+                "blend_mode": "multiply",
+                "blend_opacity": 0.2,
+                "shadow_opacity": 0.15,
+                "use_warp": false,
+                "warp_pts": null
+            }
+        }
+    },
+    "matching": {
+        "grid_9": {
+            "cols": 3,
+            "rows": 3,
+            "canvas_w": 3600,
+            "canvas_h": 3600,
+            "padding": 0,
+            "cell_scale": 1,
+            "bg_color": "#ffffff",
+            "shadow": false,
+            "tight": true,
+            "divider_width": 2,
+            "divider_color": "#e0e0e0"
+        },
+        "grid_6": {
+            "cols": 3,
+            "rows": 2,
+            "canvas_w": 3600,
+            "canvas_h": 2400,
+            "padding": 0,
+            "cell_scale": 1,
+            "bg_color": "#ffffff",
+            "shadow": false,
+            "tight": true,
+            "divider_width": 2,
+            "divider_color": "#e0e0e0"
+        },
+        "grid_4": {
+            "cols": 2,
+            "rows": 2,
+            "canvas_w": 2400,
+            "canvas_h": 2400,
+            "padding": 0,
+            "cell_scale": 1,
+            "bg_color": "#ffffff",
+            "shadow": false,
+            "tight": true,
+            "divider_width": 2,
+            "divider_color": "#e0e0e0"
+        },
+        "grid_6_crop": {
+            "cols": 3,
+            "rows": 2,
+            "canvas_w": 3600,
+            "canvas_h": 2400,
+            "padding": 6,
+            "cell_scale": 1,
+            "bg_color": "#ffffff",
+            "shadow": false,
+            "tight": true,
+            "divider_width": 4,
+            "divider_color": "#ffffff",
+            "crop_box": [
+                0,
+                0.1,
+                1,
+                0.8
+            ]
+        },
+        "grid_9_crop": {
+            "cols": 3,
+            "rows": 3,
+            "canvas_w": 3600,
+            "canvas_h": 3600,
+            "padding": 6,
+            "cell_scale": 1,
+            "bg_color": "#ffffff",
+            "shadow": false,
+            "tight": true,
+            "divider_width": 4,
+            "divider_color": "#ffffff",
+            "crop_box": [
+                0,
+                0.1,
+                1,
+                0.8
+            ]
+        },
+        "grid_4_crop": {
+            "cols": 2,
+            "rows": 2,
+            "canvas_w": 2400,
+            "canvas_h": 2400,
+            "padding": 6,
+            "cell_scale": 1,
+            "bg_color": "#ffffff",
+            "shadow": false,
+            "tight": true,
+            "divider_width": 4,
+            "divider_color": "#ffffff",
+            "crop_box": [
+                0,
+                0.1,
+                1,
+                0.8
+            ]
+        }
+    },
+    "catalog": {
+        "matching_1": {
+            "positions": [
+                {
+                    "x": 0.2,
+                    "y": 0.33,
+                    "scale": 0.23,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.5,
+                    "y": 0.33,
+                    "scale": 0.23,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.8,
+                    "y": 0.33,
+                    "scale": 0.23,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.5,
+                    "y": 0.75,
+                    "scale": 0.23,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.2,
+                    "y": 0.75,
+                    "scale": 0.23,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.81,
+                    "y": 0.75,
+                    "scale": 0.23,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                }
+            ]
+        },
+        "matching_2": {
+            "positions": [
+                {
+                    "x": 0.22,
+                    "y": 0.22,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.49,
+                    "y": 0.22,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.76,
+                    "y": 0.22,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.49,
+                    "y": 0.55,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.22,
+                    "y": 0.55,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.76,
+                    "y": 0.55,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.49,
+                    "y": 0.87,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.22,
+                    "y": 0.87,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.76,
+                    "y": 0.87,
+                    "scale": 0.18,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                }
+            ]
+        },
+        "matching_3": {
+            "positions": [
+                {
+                    "x": 0.5,
+                    "y": 0.28,
+                    "scale": 0.33,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.2,
+                    "shadow_opacity": 0.1
+                },
+                {
+                    "x": 0.19,
+                    "y": 0.3,
+                    "scale": 0.28,
+                    "rotation": -14,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.25,
+                    "shadow_opacity": 0.15
+                },
+                {
+                    "x": 0.8,
+                    "y": 0.3,
+                    "scale": 0.28,
+                    "rotation": 14,
+                    "blend_mode": "screen",
+                    "blend_opacity": 0.2,
+                    "shadow_opacity": 0.12
+                },
+                {
+                    "x": 0.51,
+                    "y": 0.72,
+                    "scale": 0.33,
+                    "rotation": 0,
+                    "blend_mode": "screen",
+                    "blend_opacity": 0.2,
+                    "shadow_opacity": 0.12
+                },
+                {
+                    "x": 0.21,
+                    "y": 0.75,
+                    "scale": 0.28,
+                    "rotation": -14,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.2,
+                    "shadow_opacity": 0.1
+                },
+                {
+                    "x": 0.81,
+                    "y": 0.75,
+                    "scale": 0.28,
+                    "rotation": 14,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.2,
+                    "shadow_opacity": 0.1
+                }
+            ]
+        },
+        "matching_4": {
+            "positions": [
+                {
+                    "x": 0.23,
+                    "y": 0.22,
+                    "scale": 0.17,
+                    "rotation": -25,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.5,
+                    "y": 0.18,
+                    "scale": 0.17,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.77,
+                    "y": 0.22,
+                    "scale": 0.17,
+                    "rotation": 16,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.49,
+                    "y": 0.79,
+                    "scale": 0.17,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.74,
+                    "y": 0.829,
+                    "scale": 0.17,
+                    "rotation": 38,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.23,
+                    "y": 0.82,
+                    "scale": 0.17,
+                    "rotation": -34,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.49,
+                    "y": 0.49,
+                    "scale": 0.17,
+                    "rotation": 0,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.2,
+                    "y": 0.54,
+                    "scale": 0.17,
+                    "rotation": -15,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                },
+                {
+                    "x": 0.78,
+                    "y": 0.51,
+                    "scale": 0.16,
+                    "rotation": 22,
+                    "blend_mode": "multiply",
+                    "blend_opacity": 0.15,
+                    "shadow_opacity": 0.08
+                }
+            ]
+        }
+    }
+}
